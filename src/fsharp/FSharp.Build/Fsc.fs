@@ -369,7 +369,7 @@ type [<Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:Iden
                 System.Diagnostics.Debug.Assert(false, "HostObject received by Fsc task did not have a Compile method or the compile method threw an exception. "+(e.ToString()))
                 reraise()
            
-    override fsc.GenerateCommandLineCommands() =
+    override fsc.GenerateResponseFileCommands() =
         let builder = new FscCommandLineBuilder()
         
         // OutputAssembly
@@ -513,7 +513,7 @@ type [<Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:Iden
         s
     // expose this to internal components (for nunit testing)
     member internal fsc.InternalGenerateCommandLineCommands() =
-        fsc.GenerateCommandLineCommands()
+        fsc.GenerateResponseFileCommands()
     member internal fsc.InternalExecuteTool(pathToTool, responseFileCommands, commandLineCommands) =
         fsc.ExecuteTool(pathToTool, responseFileCommands, commandLineCommands)
     member internal fsc.GetCapturedArguments() = 
