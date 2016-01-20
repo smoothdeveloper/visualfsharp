@@ -5,7 +5,7 @@ namespace Microsoft.FSharp.Build
 type Fsc = class
              inherit Microsoft.Build.Utilities.ToolTask
              new : unit -> Fsc
-             override GenerateCommandLineCommands : unit -> System.String
+             override GenerateResponseFileCommands : unit -> System.String
              override GenerateFullPathToTool : unit -> System.String
              override ToolName : System.String
              override StandardErrorEncoding : System.Text.Encoding
