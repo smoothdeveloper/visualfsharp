@@ -1223,12 +1223,12 @@ type internal FsiDynamicCompiler
         { istate with tcState = tcState.NextStateAfterIncrementalFragment(tcEnv); optEnv = optEnv }
 
 
-    member __.EvalPackageManagerTextFragment (packageManagerPrefix:string,m,text: string) =
-        let text = text.Substring(packageManagerPrefix.Length).Trim()
+    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.PackageManager,m,text: string) =
+        let text = text.Substring(packageManager.Prefix.Length).Trim()
         
-        match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
-        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix (lines @ [text,m]) tcConfigB.packageManagerLines
-        | _ -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix [text,m] tcConfigB.packageManagerLines
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManager with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager (lines @ [text,m]) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager [text,m] tcConfigB.packageManagerLines
 
         needsPackageResolution <- true
          
@@ -1238,12 +1238,12 @@ type internal FsiDynamicCompiler
         
         let istate = ref istate
         for kv in tcConfigB.packageManagerLines do
-            let packageManagerPrefix,packageManagerLines = kv.Key,kv.Value
+            let packageManager,packageManagerLines = kv.Key,kv.Value
             match packageManagerLines with
             | [] -> ()
             | (_,m)::_ ->
                 let packageManagerTextLines = packageManagerLines |> List.map fst
-                match Microsoft.FSharp.Compiler.PackageManager.resolve packageManagerPrefix tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
+                match PackageManagerIntegration.resolve packageManager tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
                 | None -> () // error already reported
                 | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
                     for folder in additionalIncludeFolders do 
@@ -1913,9 +1913,9 @@ type internal FsiInteractionProcessor
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                match PackageManager.RegisteredPackageManagers |> List.tryFind (fun packageManagerPrefix -> path.StartsWith packageManagerPrefix) with
-                | Some packageManagerPrefix -> 
-                    fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManagerPrefix,m,path)
+                match PackageManagerIntegration.RegisteredPackageManagers |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                | Some packageManager -> 
+                    fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManager,m,path)
                     istate,Completed None
                 | None ->
                     let resolutions,istate = fsiDynamicCompiler.EvalRequireReference(ctok, istate, m, path)

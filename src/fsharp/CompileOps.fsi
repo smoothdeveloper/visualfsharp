@@ -260,7 +260,7 @@ type TcConfigBuilder =
       mutable loadedSources: (range * string * string) list
       
       mutable referencedDLLs: AssemblyReference  list
-      mutable packageManagerLines : Map<string,(string*range) list>
+      mutable packageManagerLines : Map<PackageManagerIntegration.PackageManager,(string*range) list>
 
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list
@@ -662,7 +662,7 @@ val RequireDLL : CompilationThreadToken * TcImports * TcEnv * thisAssemblyName: 
 
 /// Processing # commands
 val ProcessMetaCommandsFromInput : 
-    (('T -> range * string -> 'T) * ('T -> range * string -> 'T) * ('T -> string * range * string -> 'T) * ('T -> range * string -> unit)) 
+    (('T -> range * string -> 'T) * ('T -> range * string -> 'T) * ('T -> PackageManagerIntegration.PackageManager * range * string -> 'T) * ('T -> range * string -> unit)) 
     -> TcConfigBuilder * Ast.ParsedInput * string * 'T 
     -> 'T
 

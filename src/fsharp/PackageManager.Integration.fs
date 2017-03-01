@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
 /// Helper members to integrate PackageManagers into F# codebase
-module internal Microsoft.FSharp.Compiler.PackageManager
+module internal Microsoft.FSharp.Compiler.PackageManagerIntegration
 
 open System
 open System.IO
@@ -33,12 +33,20 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
 
-let RegisteredPackageManagers = ["paket:"] // this should really be records with names and load script names and stuff
+type PackageManager = {
+    Prefix: string
+    ToolName: string
+    Name:string }
 
-let resolve packageManagerPrefix implicitIncludeDir fileName m packageManagerTextLines =
+let RegisteredPackageManagers : PackageManager list = 
+    [ { Prefix = "paket:"
+        ToolName = "paket.exe"
+        Name = "Paket" }] 
+
+let resolve (packageManager:PackageManager) implicitIncludeDir fileName m packageManagerTextLines =
     try
-        if not (List.contains packageManagerPrefix RegisteredPackageManagers) then
-            errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerPrefix, String.Join(", ", RegisteredPackageManagers)),m))
+        if not (List.contains packageManager RegisteredPackageManagers) then
+            errorR(Error(FSComp.SR.packageManagerUnknown(packageManager.Name, String.Join(", ", RegisteredPackageManagers |> List.map (fun pm -> pm.Name))),m))
 
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
@@ -50,7 +58,7 @@ let resolve packageManagerPrefix implicitIncludeDir fileName m packageManagerTex
 
         match referenceLoadingResult with 
         | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
-            errorR(Error(FSComp.SR.packageManagerNotFound(implicitIncludeDir, userProfile),m))
+            errorR(Error(FSComp.SR.packageManagerNotFound(packageManager.ToolName,implicitIncludeDir, userProfile),m))
             None
         | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
             errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))

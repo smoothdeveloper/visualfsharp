@@ -2027,7 +2027,7 @@ type TcConfigBuilder =
       mutable conditionalCompilationDefines: string list
       mutable loadedSources: (range * string * string) list
       mutable referencedDLLs : AssemblyReference list
-      mutable packageManagerLines : Map<string,(string*range) list>
+      mutable packageManagerLines : Map<PackageManagerIntegration.PackageManager,(string*range) list>
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list
       optimizeForMemory: bool
@@ -2406,12 +2406,12 @@ type TcConfigBuilder =
              let projectReference = tcConfigB.projectReferences |> List.tryPick (fun pr -> if pr.FileName = path then Some pr else None)
              tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs ++ AssemblyReference(m,path,projectReference)
              
-    member tcConfigB.AddPackageManagerText (packageManagerPrefix:string,m,text:string) = 
-        let text = text.Substring(packageManagerPrefix.Length).Trim()
+    member tcConfigB.AddPackageManagerText (packageManager:PackageManagerIntegration.PackageManager,m,text:string) = 
+        let text = text.Substring(packageManager.Prefix.Length).Trim()
 
-        match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
-        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix (lines ++ (text,m)) tcConfigB.packageManagerLines
-        | _ -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix [text,m] tcConfigB.packageManagerLines
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManager with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager (lines ++ (text,m)) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager [text,m] tcConfigB.packageManagerLines
              
     member tcConfigB.RemoveReferencedAssemblyByPath (m,path) =
         tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs |> List.filter (fun ar-> ar.Range <> m || ar.Text <> path)
@@ -4640,7 +4640,7 @@ let RequireDLL (ctok, tcImports:TcImports, tcEnv, thisAssemblyName, m, file) =
 let ProcessMetaCommandsFromInput 
      (nowarnF: 'state -> range * string -> 'state,
       dllRequireF: 'state -> range * string -> 'state,
-      packageRequireF: 'state -> string * range * string -> 'state,
+      packageRequireF: 'state -> PackageManagerIntegration.PackageManager * range * string -> 'state,
       loadSourceF: 'state -> range * string -> unit) 
      (tcConfig:TcConfigBuilder, inp, pathOfMetaCommandSource, state0) =
      
@@ -4675,9 +4675,9 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   match PackageManager.RegisteredPackageManagers |> List.tryFind (fun packageManagerPrefix -> path.StartsWith packageManagerPrefix) with
-                   | Some packageManagerPrefix -> 
-                       packageRequireF state (packageManagerPrefix,m,path)
+                   match PackageManagerIntegration.RegisteredPackageManagers |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                   | Some packageManager -> 
+                       packageRequireF state (packageManager,m,path)
                    | None ->
                        dllRequireF state (m,path)
                | _ -> 
@@ -4768,7 +4768,7 @@ let ApplyMetaCommandsFromInputToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pa
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let getWarningNumber = fun () _ -> () 
     let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-    let addPackageManagerText = fun () (packageManagerPrefix, m,s) -> tcConfigB.AddPackageManagerText(packageManagerPrefix,m,s)
+    let addPackageManagerText = fun () (packageManager, m,s) -> tcConfigB.AddPackageManagerText(packageManager,m,s)
     let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
     ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
@@ -4922,15 +4922,15 @@ module ScriptPreprocessClosure =
         // Resolve the packages
         let rec resolvePackageManagerSources() =
             [ for kv in tcConfig.Value.packageManagerLines do
-                let packageManagerPrefix,packageManagerLines = kv.Key,kv.Value
+                let packageManager,packageManagerLines = kv.Key,kv.Value
                 match packageManagerLines with
                 | [] -> ()
                 | (_,m)::_ ->
-                    match origTcConfig.packageManagerLines |> Map.tryFind packageManagerPrefix with
+                    match origTcConfig.packageManagerLines |> Map.tryFind packageManager with
                     | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
                         let packageManagerTextLines = packageManagerLines |> List.map fst
-                        match Microsoft.FSharp.Compiler.PackageManager.resolve packageManagerPrefix tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
+                        match PackageManagerIntegration.resolve packageManager tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
                         | None -> () // error already reported
                         | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
                             // This may incrementally update tcConfig too with new #r references
