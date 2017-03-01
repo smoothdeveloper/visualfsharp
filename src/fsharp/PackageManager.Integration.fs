@@ -28,15 +28,12 @@ let AlterPackageManagementToolCommand command =
 /// or
 /// baseDir/.paket/load/frameworkDir/scriptName 
 let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
-  ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation
-    baseDir
-    optionalFrameworkDir
-    "main.group.fsx"
+    ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation baseDir optionalFrameworkDir scriptName
 
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
 
-let RegisteredPackageManagers = ["paket:"]
+let RegisteredPackageManagers = ["paket:"] // this should really be records with names and load script names and stuff
 
 let resolve packageManagerPrefix implicitIncludeDir fileName m packageManagerTextLines =
     try
