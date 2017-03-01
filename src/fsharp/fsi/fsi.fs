@@ -1258,9 +1258,8 @@ type internal FsiDynamicCompiler
                 | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
                     // This may incrementally update tcConfig too with new #r references
                     // New package text is ignored on this second phase
-                    if not (isNil additionalIncludeFolders) then
-                        for folder in additionalIncludeFolders do 
-                            tcConfigB.AddIncludePath(m,folder,"")
+                    for folder in additionalIncludeFolders do 
+                        tcConfigB.AddIncludePath(m,folder,"")
                     Some(loadScript,File.ReadAllText(loadScript))
             with e -> 
                 errorRecovery e m
