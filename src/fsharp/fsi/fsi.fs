@@ -73,8 +73,6 @@ open System.Runtime.CompilerServices
 [<Dependency("FSharp.Core",LoadHint.Always)>] do ()
 #endif
 
-let packageManagerPrefix = "paket:"
-
 //----------------------------------------------------------------------------
 // For the FSI as a service methods...
 //----------------------------------------------------------------------------
@@ -1225,7 +1223,7 @@ type internal FsiDynamicCompiler
         { istate with tcState = tcState.NextStateAfterIncrementalFragment(tcEnv); optEnv = optEnv }
 
 
-    member __.EvalPackageManagerTextFragment (m,text: string) = 
+    member __.EvalPackageManagerTextFragment (packageManagerPrefix:string,m,text: string) =
         let text = text.Substring(packageManagerPrefix.Length).Trim()
         
         match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
@@ -1240,12 +1238,12 @@ type internal FsiDynamicCompiler
         
         let istate = ref istate
         for kv in tcConfigB.packageManagerLines do
-            let _prefix,packageManagerLines = kv.Key,kv.Value
+            let packageManagerPrefix,packageManagerLines = kv.Key,kv.Value
             match packageManagerLines with
             | [] -> ()
             | (_,m)::_ ->
                 let packageManagerTextLines = packageManagerLines |> List.map fst
-                match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
+                match Microsoft.FSharp.Compiler.PackageManager.resolve packageManagerPrefix tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
                 | None -> () // error already reported
                 | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
                     for folder in additionalIncludeFolders do 
@@ -1261,7 +1259,7 @@ type internal FsiDynamicCompiler
                ProcessMetaCommandsFromInput 
                    ((fun st (m,nm) -> tcConfigB.TurnWarningOff(m,nm); st),
                     (fun st (m,nm) -> snd (fsiDynamicCompiler.EvalRequireReference (ctok, st, m, nm))),
-                    (fun st (m,nm) -> fsiDynamicCompiler.EvalPackageManagerTextFragment (m,nm); st),
+                    (fun st (packageManagerPrefix,m,nm) -> fsiDynamicCompiler.EvalPackageManagerTextFragment (packageManagerPrefix,m,nm); st),
                     (fun _ _ -> ()))  
                    (tcConfigB, inp, Path.GetDirectoryName sourceFile, istate))
       
@@ -1914,31 +1912,32 @@ type internal FsiInteractionProcessor
                 let istate = fsiDynamicCompiler.CommitPackageManagerText(ctok, istate, lexResourceManager, errorLogger) 
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
-            | IHash (ParsedHashDirective(("reference" | "r"),[text],m),_) when text.StartsWith packageManagerPrefix ->
-                fsiDynamicCompiler.EvalPackageManagerTextFragment(m,text)
-                istate,Completed None
-                
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                let resolutions,istate = fsiDynamicCompiler.EvalRequireReference(ctok, istate, m, path)
-                resolutions |> List.iter (fun ar -> 
-                    let format = 
+                match PackageManager.RegisteredPackageManagers |> List.tryFind (fun packageManagerPrefix -> path.StartsWith packageManagerPrefix) with
+                | Some packageManagerPrefix -> 
+                    fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManagerPrefix,m,path)
+                    istate,Completed None
+                | None ->
+                    let resolutions,istate = fsiDynamicCompiler.EvalRequireReference(ctok, istate, m, path)
+                    resolutions |> List.iter (fun ar -> 
+                        let format = 
 #if FSI_SHADOW_COPY_REFERENCES
-                        if tcConfig.shadowCopyReferences then
-                            let resolvedPath = ar.resolvedPath.ToUpperInvariant()
-                            let fileTime = File.GetLastWriteTimeUtc(resolvedPath)
-                            match referencedAssemblies.TryGetValue(resolvedPath) with
-                            | false, _ -> 
-                                referencedAssemblies.Add(resolvedPath, fileTime)
-                                FSIstrings.SR.fsiDidAHashr(ar.resolvedPath)
-                            | true, time when time <> fileTime ->
-                                FSIstrings.SR.fsiDidAHashrWithStaleWarning(ar.resolvedPath)
-                            | _ ->
-                                FSIstrings.SR.fsiDidAHashr(ar.resolvedPath)
-                        else
+                            if tcConfig.shadowCopyReferences then
+                                let resolvedPath = ar.resolvedPath.ToUpperInvariant()
+                                let fileTime = File.GetLastWriteTimeUtc(resolvedPath)
+                                match referencedAssemblies.TryGetValue(resolvedPath) with
+                                | false, _ -> 
+                                    referencedAssemblies.Add(resolvedPath, fileTime)
+                                    FSIstrings.SR.fsiDidAHashr(ar.resolvedPath)
+                                | true, time when time <> fileTime ->
+                                    FSIstrings.SR.fsiDidAHashrWithStaleWarning(ar.resolvedPath)
+                                | _ ->
+                                    FSIstrings.SR.fsiDidAHashr(ar.resolvedPath)
+                            else
 #endif
-                            FSIstrings.SR.fsiDidAHashrWithLockWarning(ar.resolvedPath)
-                    fsiConsoleOutput.uprintnfnn "%s" format)
-                istate,Completed None
+                                FSIstrings.SR.fsiDidAHashrWithLockWarning(ar.resolvedPath)
+                        fsiConsoleOutput.uprintnfnn "%s" format)
+                    istate,Completed None
 
             | IHash (ParsedHashDirective("I",[path],m),_) -> 
                 tcConfigB.AddIncludePath (m,path, tcConfig.implicitIncludeDir)

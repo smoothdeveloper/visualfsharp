@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
-/// Helper members to integrate ReferenceLoading.PaketHandler into F# codebase
-module internal Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler
+/// Helper members to integrate PackageManagers into F# codebase
+module internal Microsoft.FSharp.Compiler.PackageManager
 
 open System
 open System.IO
@@ -36,8 +36,13 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
 
-let resolvePaket implicitIncludeDir fileName m packageManagerTextLines =
+let RegisteredPackageManagers = ["paket:"]
+
+let resolve packageManagerPrefix implicitIncludeDir fileName m packageManagerTextLines =
     try
+        if not (List.contains packageManagerPrefix RegisteredPackageManagers) then
+            errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerPrefix, String.Join(", ", RegisteredPackageManagers)),m))
+
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
                 targetFramework

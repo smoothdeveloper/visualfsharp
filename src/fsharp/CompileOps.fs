@@ -85,8 +85,6 @@ let FSharpScriptFileSuffixes = [".fsscript";".fsx"]
 let doNotRequireNamespaceOrModuleSuffixes = [".mli";".ml"] @ FSharpScriptFileSuffixes
 let FSharpLightSyntaxFileSuffixes : string list = [ ".fs";".fsscript";".fsx";".fsi" ]
 
-let packageManagerPrefix = "paket:"
-
 //----------------------------------------------------------------------------
 // ERROR REPORTING
 //--------------------------------------------------------------------------
@@ -2408,7 +2406,7 @@ type TcConfigBuilder =
              let projectReference = tcConfigB.projectReferences |> List.tryPick (fun pr -> if pr.FileName = path then Some pr else None)
              tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs ++ AssemblyReference(m,path,projectReference)
              
-    member tcConfigB.AddPackageManagerText (m,text:string) = 
+    member tcConfigB.AddPackageManagerText (packageManagerPrefix:string,m,text:string) = 
         let text = text.Substring(packageManagerPrefix.Length).Trim()
 
         match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
@@ -4642,7 +4640,7 @@ let RequireDLL (ctok, tcImports:TcImports, tcEnv, thisAssemblyName, m, file) =
 let ProcessMetaCommandsFromInput 
      (nowarnF: 'state -> range * string -> 'state,
       dllRequireF: 'state -> range * string -> 'state,
-      packageRequireF: 'state -> range * string -> 'state,
+      packageRequireF: 'state -> string * range * string -> 'state,
       loadSourceF: 'state -> range * string -> unit) 
      (tcConfig:TcConfigBuilder, inp, pathOfMetaCommandSource, state0) =
      
@@ -4677,9 +4675,10 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   if path.StartsWith packageManagerPrefix then
-                       packageRequireF state (m,path)
-                   else
+                   match PackageManager.RegisteredPackageManagers |> List.tryFind (fun packageManagerPrefix -> path.StartsWith packageManagerPrefix) with
+                   | Some packageManagerPrefix -> 
+                       packageRequireF state (packageManagerPrefix,m,path)
+                   | None ->
                        dllRequireF state (m,path)
                | _ -> 
                    errorR(Error(FSComp.SR.buildInvalidHashrDirective(),m))
@@ -4759,7 +4758,7 @@ let ApplyNoWarnsToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pathOfMetaComman
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let addNoWarn = fun () (m,s) -> tcConfigB.TurnWarningOff(m, s)
     let addReferencedAssemblyByPath = fun () (_m,_s) -> ()
-    let addPackageManagerText = fun () (_m,_s) -> ()
+    let addPackageManagerText = fun () (_prefix,_m,_s) -> ()
     let addLoadedSource = fun () (_m,_s) -> ()
     ProcessMetaCommandsFromInput (addNoWarn, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
@@ -4769,7 +4768,7 @@ let ApplyMetaCommandsFromInputToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pa
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let getWarningNumber = fun () _ -> () 
     let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-    let addPackageManagerText = fun () (m,s) -> tcConfigB.AddPackageManagerText(m,s)
+    let addPackageManagerText = fun () (packageManagerPrefix, m,s) -> tcConfigB.AddPackageManagerText(packageManagerPrefix,m,s)
     let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
     ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
@@ -4900,7 +4899,7 @@ module ScriptPreprocessClosure =
         let nowarns = ref [] 
         let getWarningNumber = fun () (m,s) -> nowarns := (s,m) :: !nowarns
         let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-        let addPackageManagerText = fun () (m,s) -> tcConfigB.AddPackageManagerText(m,s)
+        let addPackageManagerText = fun () (packageManagerPrefix,m,s) -> tcConfigB.AddPackageManagerText(packageManagerPrefix,m,s)
         let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
         try 
             ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
@@ -4923,15 +4922,15 @@ module ScriptPreprocessClosure =
         // Resolve the packages
         let rec resolvePackageManagerSources() =
             [ for kv in tcConfig.Value.packageManagerLines do
-                let prefix,packageManagerLines = kv.Key,kv.Value
+                let packageManagerPrefix,packageManagerLines = kv.Key,kv.Value
                 match packageManagerLines with
                 | [] -> ()
                 | (_,m)::_ ->
-                    match origTcConfig.packageManagerLines |> Map.tryFind prefix with
+                    match origTcConfig.packageManagerLines |> Map.tryFind packageManagerPrefix with
                     | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
                         let packageManagerTextLines = packageManagerLines |> List.map fst
-                        match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
+                        match Microsoft.FSharp.Compiler.PackageManager.resolve packageManagerPrefix tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
                         | None -> () // error already reported
                         | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
                             // This may incrementally update tcConfig too with new #r references
