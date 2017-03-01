@@ -4919,37 +4919,7 @@ module ScriptPreprocessClosure =
         let tcConfig = ref origTcConfig
         
         let observedSources = Observed()
-
-        let resolvePaket m packageManagerLines =
-            try
-                let referenceLoadingResult =
-                    ReferenceLoading.PaketHandler.Internals.ResolvePackages
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetCommandForTargetFramework
-                        (fun workDir -> Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation workDir (Some Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework))
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.AlterPackageManagementToolCommand
-                        (tcConfig.Value.implicitIncludeDir, mainFile, packageManagerLines |> List.map fst)
-
-                match referenceLoadingResult with 
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
-                    errorR(Error(FSComp.SR.packageManagerNotFound(implicitIncludeDir, userProfile),m))
-                    None
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
-                    errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))
-                    None
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
-                    // This may incrementally update tcConfig too with new #r references
-                    // New package text is ignored on this second phase
-                    if not (isNil additionalIncludeFolders) then
-                        let tcConfigB = tcConfig.Value.CloneOfOriginalBuilder
-                        for folder in additionalIncludeFolders do 
-                            tcConfigB.AddIncludePath(m,folder,"")
-                        tcConfig := TcConfig.Create(tcConfigB, validate=false)
-                    Some(loadScript,File.ReadAllText(loadScript))
-            with e -> 
-                errorRecovery e m
-                None
-
+        
         // Resolve the packages
         let rec resolvePackageManagerSources() =
             [ for kv in tcConfig.Value.packageManagerLines do
@@ -4960,9 +4930,15 @@ module ScriptPreprocessClosure =
                     match origTcConfig.packageManagerLines |> Map.tryFind prefix with
                     | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
-                        match resolvePaket m packageManagerLines with
+                        match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfig.Value.implicitIncludeDir mainFile m packageManagerLines with
                         | None -> () // error already reported
-                        | Some (loadScript,loadScriptText) -> 
+                        | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
+                            // This may incrementally update tcConfig too with new #r references
+                            // New package text is ignored on this second phase
+                            let tcConfigB = tcConfig.Value.CloneOfOriginalBuilder
+                            for folder in additionalIncludeFolders do 
+                                tcConfigB.AddIncludePath(m,folder,"")
+                            tcConfig := TcConfig.Create(tcConfigB, validate=false)
                             yield! loop (ClosureSource(loadScript,m,loadScriptText,true)) ]
 
         and loop (ClosureSource(filename,m,source,parseRequired)) = 

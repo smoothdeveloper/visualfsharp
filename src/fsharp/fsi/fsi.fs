@@ -1238,44 +1238,18 @@ type internal FsiDynamicCompiler
         if not needsPackageResolution then istate else
         needsPackageResolution <- false
         
-        let resolvePaket m packageManagerLines =
-            try
-                let referenceLoadingResult =
-                    ReferenceLoading.PaketHandler.Internals.ResolvePackages
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetCommandForTargetFramework
-                        (fun workDir -> Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation workDir (Some Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework))
-                        Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.AlterPackageManagementToolCommand
-                        (tcConfigB.implicitIncludeDir, "stdin.fsx", packageManagerLines |> List.map fst)
-
-                match referenceLoadingResult with 
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
-                    errorR(Error(FSComp.SR.packageManagerNotFound(implicitIncludeDir, userProfile),m))
-                    None
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
-                    errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))
-                    None
-                | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
-                    // This may incrementally update tcConfig too with new #r references
-                    // New package text is ignored on this second phase
-                    for folder in additionalIncludeFolders do 
-                        tcConfigB.AddIncludePath(m,folder,"")
-                    Some(loadScript,File.ReadAllText(loadScript))
-            with e -> 
-                errorRecovery e m
-                None
-        
         let istate = ref istate
         for kv in tcConfigB.packageManagerLines do
             let _prefix,packageManagerLines = kv.Key,kv.Value
             match packageManagerLines with
             | [] -> ()
             | (_,m)::_ ->
-                match resolvePaket m packageManagerLines with
+                match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerLines with
                 | None -> () // error already reported
-                | Some (loadScript,_loadScriptText) -> 
-                    istate :=
-                        fsiDynamicCompiler.EvalSourceFiles (ctok, !istate, m, [loadScript], lexResourceManager, errorLogger)
+                | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
+                    for folder in additionalIncludeFolders do 
+                        tcConfigB.AddIncludePath(m,folder,"")
+                    istate := fsiDynamicCompiler.EvalSourceFiles (ctok, !istate, m, [loadScript], lexResourceManager, errorLogger)
 
         !istate
 

@@ -3,6 +3,10 @@
 /// Helper members to integrate ReferenceLoading.PaketHandler into F# codebase
 module internal Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler
 
+open System
+open System.IO
+open Microsoft.FSharp.Compiler.ErrorLogger
+
 // NOTE: this contains mostly members whose intents are :
 // * to keep ReferenceLoading.PaketHandler usable outside of F# (so it can be used in scriptcs & others)
 // * to minimize footprint of integration in fsi/CompileOps
@@ -31,3 +35,26 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
 
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
+
+let resolvePaket implicitIncludeDir fileName m packageManagerLines =
+    try
+        let referenceLoadingResult =
+            ReferenceLoading.PaketHandler.Internals.ResolvePackages
+                targetFramework
+                GetCommandForTargetFramework
+                (fun workDir -> GetPaketLoadScriptLocation workDir (Some targetFramework))
+                AlterPackageManagementToolCommand
+                (implicitIncludeDir, fileName, packageManagerLines |> List.map fst)
+
+        match referenceLoadingResult with 
+        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
+            errorR(Error(FSComp.SR.packageManagerNotFound(implicitIncludeDir, userProfile),m))
+            None
+        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
+            errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))
+            None
+        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
+            Some(additionalIncludeFolders,loadScript,File.ReadAllText(loadScript))
+    with e ->
+        errorRecovery e m
+        None
