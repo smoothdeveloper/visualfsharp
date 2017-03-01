@@ -2029,7 +2029,7 @@ type TcConfigBuilder =
       mutable conditionalCompilationDefines: string list
       mutable loadedSources: (range * string * string) list
       mutable referencedDLLs : AssemblyReference list
-      packageManagerLines : Dictionary<string,(string*range) list>
+      mutable packageManagerLines : Map<string,(string*range) list>
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list
       optimizeForMemory: bool
@@ -2192,7 +2192,7 @@ type TcConfigBuilder =
           framework=true
           implicitlyResolveAssemblies=true
           referencedDLLs = []
-          packageManagerLines = Dictionary<_,_>()
+          packageManagerLines = Map.empty
           projectReferences = []
           knownUnresolvedReferences = []
           loadedSources = []
@@ -2411,9 +2411,9 @@ type TcConfigBuilder =
     member tcConfigB.AddPackageManagerText (m,text:string) = 
         let text = text.Substring(packageManagerPrefix.Length).Trim()
 
-        match tcConfigB.packageManagerLines.TryGetValue packageManagerPrefix with
-        | true, lines -> tcConfigB.packageManagerLines.[packageManagerPrefix] <- lines ++ (text,m)
-        | _ -> tcConfigB.packageManagerLines.Add(packageManagerPrefix,[text,m])
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix (lines ++ (text,m)) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix [text,m] tcConfigB.packageManagerLines
              
     member tcConfigB.RemoveReferencedAssemblyByPath (m,path) =
         tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs |> List.filter (fun ar-> ar.Range <> m || ar.Text <> path)
@@ -4957,8 +4957,8 @@ module ScriptPreprocessClosure =
                 match packageManagerLines with
                 | [] -> ()
                 | (_,m)::_ ->
-                    match origTcConfig.packageManagerLines.TryGetValue prefix with
-                    | true, oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
+                    match origTcConfig.packageManagerLines |> Map.tryFind prefix with
+                    | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
                         match resolvePaket m packageManagerLines with
                         | None -> () // error already reported

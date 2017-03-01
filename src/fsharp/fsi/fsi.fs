@@ -1227,10 +1227,10 @@ type internal FsiDynamicCompiler
 
     member __.EvalPackageManagerTextFragment (m,text: string) = 
         let text = text.Substring(packageManagerPrefix.Length).Trim()
-
-        match tcConfigB.packageManagerLines.TryGetValue packageManagerPrefix with
-        | true, lines -> tcConfigB.packageManagerLines.[packageManagerPrefix] <- lines @ [ text,m ]
-        | _ -> tcConfigB.packageManagerLines.Add(packageManagerPrefix,[text,m])
+        
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManagerPrefix with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix (lines @ [text,m]) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManagerPrefix [text,m] tcConfigB.packageManagerLines
 
         needsPackageResolution <- true
          

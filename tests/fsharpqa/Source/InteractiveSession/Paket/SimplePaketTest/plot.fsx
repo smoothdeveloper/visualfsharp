@@ -1,4 +1,4 @@
-#r "paket: nuget XPlot.Plotly"
+#r "paket: nuget XPlot.Plotly2"
 
 open XPlot.Plotly
 
