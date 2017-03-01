@@ -1913,7 +1913,7 @@ type internal FsiInteractionProcessor
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                match PackageManagerIntegration.RegisteredPackageManagers |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                match PackageManagerIntegration.RegisteredPackageManagers.Force() |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
                 | Some packageManager -> 
                     fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManager,m,path)
                     istate,Completed None

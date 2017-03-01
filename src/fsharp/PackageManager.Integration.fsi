@@ -10,7 +10,5 @@ type PackageManager = {
     ToolName: string
     Name:string }
 
-val RegisteredPackageManagers : PackageManager list
+val RegisteredPackageManagers : Lazy<PackageManager list>
 val resolve : PackageManager -> string -> string  -> range -> string list -> (string list * string * string) option
-
-

@@ -4675,7 +4675,7 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   match PackageManagerIntegration.RegisteredPackageManagers |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                   match PackageManagerIntegration.RegisteredPackageManagers.Force() |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
                    | Some packageManager -> 
                        packageRequireF state (packageManager,m,path)
                    | None ->

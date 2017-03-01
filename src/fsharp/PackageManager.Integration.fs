@@ -38,15 +38,17 @@ type PackageManager = {
     ToolName: string
     Name:string }
 
-let RegisteredPackageManagers : PackageManager list = 
+let RegisteredPackageManagers = lazy (
     [ { Prefix = "paket:"
         ToolName = "paket.exe"
         Name = "Paket" }] 
+)
 
 let resolve (packageManager:PackageManager) implicitIncludeDir fileName m packageManagerTextLines =
     try
-        if not (List.contains packageManager RegisteredPackageManagers) then
-            errorR(Error(FSComp.SR.packageManagerUnknown(packageManager.Name, String.Join(", ", RegisteredPackageManagers |> List.map (fun pm -> pm.Name))),m))
+        let registered = RegisteredPackageManagers.Force()
+        if not (List.contains packageManager registered) then
+            errorR(Error(FSComp.SR.packageManagerUnknown(packageManager.Name, String.Join(", ", registered |> List.map (fun pm -> pm.Name))),m))
 
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
