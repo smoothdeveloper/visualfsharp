@@ -260,7 +260,7 @@ type TcConfigBuilder =
       mutable loadedSources: (range * string * string) list
       
       mutable referencedDLLs: AssemblyReference  list
-      mutable packageManagerTextLines : string list
+      packageManagerLines : Dictionary<string,(string*range) list>
 
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list

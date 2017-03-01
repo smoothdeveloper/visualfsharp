@@ -2029,7 +2029,7 @@ type TcConfigBuilder =
       mutable conditionalCompilationDefines: string list
       mutable loadedSources: (range * string * string) list
       mutable referencedDLLs : AssemblyReference list
-      mutable packageManagerTextLines : string list
+      packageManagerLines : Dictionary<string,(string*range) list>
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list
       optimizeForMemory: bool
@@ -2192,7 +2192,7 @@ type TcConfigBuilder =
           framework=true
           implicitlyResolveAssemblies=true
           referencedDLLs = []
-          packageManagerTextLines = []
+          packageManagerLines = Dictionary<_,_>()
           projectReferences = []
           knownUnresolvedReferences = []
           loadedSources = []
@@ -2408,9 +2408,12 @@ type TcConfigBuilder =
              let projectReference = tcConfigB.projectReferences |> List.tryPick (fun pr -> if pr.FileName = path then Some pr else None)
              tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs ++ AssemblyReference(m,path,projectReference)
              
-    member tcConfigB.AddPackageManagerText (text:string) = 
+    member tcConfigB.AddPackageManagerText (m,text:string) = 
         let text = text.Substring(packageManagerPrefix.Length).Trim()
-        tcConfigB.packageManagerTextLines <- tcConfigB.packageManagerTextLines ++ text
+
+        match tcConfigB.packageManagerLines.TryGetValue packageManagerPrefix with
+        | true, lines -> tcConfigB.packageManagerLines.[packageManagerPrefix] <- lines ++ (text,m)
+        | _ -> tcConfigB.packageManagerLines.Add(packageManagerPrefix,[text,m])
              
     member tcConfigB.RemoveReferencedAssemblyByPath (m,path) =
         tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs |> List.filter (fun ar-> ar.Range <> m || ar.Text <> path)
@@ -2753,7 +2756,7 @@ type TcConfig private (data : TcConfigBuilder,validate:bool) =
     member x.embedAllSource  = data.embedAllSource
     member x.embedSourceList  = data.embedSourceList
     member x.sourceLink  = data.sourceLink
-    member x.packageManagerTextLines  = data.packageManagerTextLines
+    member x.packageManagerLines  = data.packageManagerLines
     member x.ignoreSymbolStoreSequencePoints  = data.ignoreSymbolStoreSequencePoints
     member x.internConstantStrings  = data.internConstantStrings
     member x.extraOptimizationIterations  = data.extraOptimizationIterations
@@ -4766,7 +4769,7 @@ let ApplyMetaCommandsFromInputToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pa
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let getWarningNumber = fun () _ -> () 
     let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-    let addPackageManagerText = fun () (_m,s) -> tcConfigB.AddPackageManagerText(s)
+    let addPackageManagerText = fun () (m,s) -> tcConfigB.AddPackageManagerText(m,s)
     let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
     ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
@@ -4897,7 +4900,7 @@ module ScriptPreprocessClosure =
         let nowarns = ref [] 
         let getWarningNumber = fun () (m,s) -> nowarns := (s,m) :: !nowarns
         let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-        let addPackageManagerText = fun () (_m,s) -> tcConfigB.AddPackageManagerText(s)
+        let addPackageManagerText = fun () (m,s) -> tcConfigB.AddPackageManagerText(m,s)
         let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
         try 
             ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
@@ -4912,30 +4915,28 @@ module ScriptPreprocessClosure =
             let tcConfigB = tcConfig.CloneOfOriginalBuilder 
             TcConfig.Create(tcConfigB, validate=false),nowarns
     
-    let FindClosureFiles(mainFile, m, closureSources, origTcConfig:TcConfig, codeContext, lexResourceManager:Lexhelp.LexResourceManager) =
+    let FindClosureFiles(mainFile, _m, closureSources, origTcConfig:TcConfig, codeContext, lexResourceManager:Lexhelp.LexResourceManager) =
         let tcConfig = ref origTcConfig
         
         let observedSources = Observed()
 
-        // Resolve the packages
-        let rec resolvePackageManagerSources() =
-            if tcConfig.Value.packageManagerTextLines = origTcConfig.packageManagerTextLines then
-                []
-            else 
+        let resolvePaket m packageManagerLines =
+            try
                 let referenceLoadingResult =
                     ReferenceLoading.PaketHandler.Internals.ResolvePackages
                         Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework
                         Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetCommandForTargetFramework
                         (fun workDir -> Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation workDir (Some Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.targetFramework))
                         Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.AlterPackageManagementToolCommand
-                        (tcConfig.Value.implicitIncludeDir, mainFile, tcConfig.Value.packageManagerTextLines)
+                        (tcConfig.Value.implicitIncludeDir, mainFile, packageManagerLines |> List.map fst)
+
                 match referenceLoadingResult with 
                 | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
                     errorR(Error(FSComp.SR.packageManagerNotFound(implicitIncludeDir, userProfile),m))
-                    []
+                    None
                 | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
                     errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))
-                    []
+                    None
                 | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
                     // This may incrementally update tcConfig too with new #r references
                     // New package text is ignored on this second phase
@@ -4944,7 +4945,25 @@ module ScriptPreprocessClosure =
                         for folder in additionalIncludeFolders do 
                             tcConfigB.AddIncludePath(m,folder,"")
                         tcConfig := TcConfig.Create(tcConfigB, validate=false)
-                    loop (ClosureSource(loadScript,m,File.ReadAllText(loadScript),true)) 
+                    Some(loadScript,File.ReadAllText(loadScript))
+            with e -> 
+                errorRecovery e m
+                None
+
+        // Resolve the packages
+        let rec resolvePackageManagerSources() =
+            [ for kv in tcConfig.Value.packageManagerLines do
+                let prefix,packageManagerLines = kv.Key,kv.Value
+                match packageManagerLines with
+                | [] -> ()
+                | (_,m)::_ ->
+                    match origTcConfig.packageManagerLines.TryGetValue prefix with
+                    | true, oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
+                    | _ ->
+                        match resolvePaket m packageManagerLines with
+                        | None -> () // error already reported
+                        | Some (loadScript,loadScriptText) -> 
+                            yield! loop (ClosureSource(loadScript,m,loadScriptText,true)) ]
 
         and loop (ClosureSource(filename,m,source,parseRequired)) = 
             [   if not (observedSources.HaveSeen(filename)) then
