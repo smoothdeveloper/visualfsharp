@@ -36,7 +36,7 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
 
-let resolvePaket implicitIncludeDir fileName m packageManagerLines =
+let resolvePaket implicitIncludeDir fileName m packageManagerTextLines =
     try
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
@@ -44,7 +44,7 @@ let resolvePaket implicitIncludeDir fileName m packageManagerLines =
                 GetCommandForTargetFramework
                 (fun workDir -> GetPaketLoadScriptLocation workDir (Some targetFramework))
                 AlterPackageManagementToolCommand
-                (implicitIncludeDir, fileName, packageManagerLines |> List.map fst)
+                (implicitIncludeDir, fileName, packageManagerTextLines)
 
         match referenceLoadingResult with 
         | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->

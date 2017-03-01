@@ -4930,7 +4930,8 @@ module ScriptPreprocessClosure =
                     match origTcConfig.packageManagerLines |> Map.tryFind prefix with
                     | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
-                        match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfig.Value.implicitIncludeDir mainFile m packageManagerLines with
+                        let packageManagerTextLines = packageManagerLines |> List.map fst
+                        match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
                         | None -> () // error already reported
                         | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
                             // This may incrementally update tcConfig too with new #r references

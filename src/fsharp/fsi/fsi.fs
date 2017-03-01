@@ -1244,7 +1244,8 @@ type internal FsiDynamicCompiler
             match packageManagerLines with
             | [] -> ()
             | (_,m)::_ ->
-                match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerLines with
+                let packageManagerTextLines = packageManagerLines |> List.map fst
+                match Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler.resolvePaket tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
                 | None -> () // error already reported
                 | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
                     for folder in additionalIncludeFolders do 

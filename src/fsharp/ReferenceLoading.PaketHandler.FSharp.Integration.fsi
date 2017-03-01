@@ -5,4 +5,4 @@ module internal Microsoft.FSharp.Compiler.ReferenceLoading.PaketHandler
 
 open Microsoft.FSharp.Compiler.Range
 
-val resolvePaket : string -> string  -> range -> ((string * range) list) -> ((string list * string * string) option)
+val resolvePaket : string -> string  -> range -> string list -> (string list * string * string) option
