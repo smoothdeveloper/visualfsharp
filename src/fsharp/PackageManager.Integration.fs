@@ -56,7 +56,10 @@ let resolve (packageManager:PackageManager) implicitIncludeDir fileName m packag
                 GetCommandForTargetFramework
                 (fun workDir -> GetPaketLoadScriptLocation workDir (Some targetFramework))
                 AlterPackageManagementToolCommand
-                (implicitIncludeDir, fileName, packageManagerTextLines)
+                Seq.empty
+                implicitIncludeDir
+                fileName
+                packageManagerTextLines
 
         match referenceLoadingResult with 
         | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
