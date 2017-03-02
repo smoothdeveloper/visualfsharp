@@ -10,6 +10,7 @@ type IDependencyManagerProvider =
     abstract Name : string
     abstract ToolName: string
     abstract Key: string
+    abstract ResolveDependencies : string * string seq * string * string * string seq -> string * string list
 
 val RegisteredDependencyManagers : unit -> Map<string,IDependencyManagerProvider>
 val tryFindDependencyManagerInPath : string -> IDependencyManagerProvider option
@@ -17,4 +18,4 @@ val tryFindDependencyManagerByKey : string -> IDependencyManagerProvider option
 
 val removeDependencyManagerKey : string -> string -> string
 
-val resolve : IDependencyManagerProvider -> string -> string  -> range -> string list -> (string list * string * string) option
+val resolve : IDependencyManagerProvider -> string -> string  -> range -> string seq -> (string list * string * string) option

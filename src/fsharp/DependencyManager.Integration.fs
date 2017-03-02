@@ -17,33 +17,26 @@ let scriptName = "main.group.fsx"
 /// hardcoded to net461 as we don't have fsi on netcore
 let targetFramework = "net461"
 
-/// used to alter package management tool command depending runtime context (if running Mono, prefix with "mono ").
-let AlterPackageManagementToolCommand command =
-    if Microsoft.FSharp.Compiler.AbstractIL.IL.runningOnMono 
-    then "mono " + command
-    else command
-
-/// Resolves absolute load script location: something like
-/// baseDir/.paket/load/scriptName
-/// or
-/// baseDir/.paket/load/frameworkDir/scriptName 
-let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
-    ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation baseDir optionalFrameworkDir scriptName
-
-let GetCommandForTargetFramework targetFramework =
-    ReferenceLoading.PaketHandler.MakeDependencyManagerCommand "fsx" targetFramework
 
 type IDependencyManagerProvider =
     inherit System.IDisposable
     abstract Name : string
     abstract ToolName: string
     abstract Key: string
+    abstract ResolveDependencies : string * string seq * string * string * string seq -> string * string list
 
 type PaketDependencyManager() =
     interface IDependencyManagerProvider with
         member __.Name = "Paket"
         member __.ToolName = "paket.exe"
         member __.Key = "paket"
+        member __.ResolveDependencies(targetFramework:string, prioritizedSearchPaths, scriptDir: string, scriptName: string, packageManagerTextLines: string seq) = 
+            ReferenceLoading.PaketHandler.ResolveDependencies(
+                targetFramework,
+                prioritizedSearchPaths,
+                scriptDir,
+                scriptName,
+                packageManagerTextLines)
 
     interface System.IDisposable with
         member __.Dispose() = ()
@@ -68,26 +61,15 @@ let tryFindDependencyManagerByKey (key:string) : IDependencyManagerProvider opti
 
 let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileName m packageManagerTextLines =
     try
-        let referenceLoadingResult =
-            ReferenceLoading.PaketHandler.Internals.ResolvePackages
-                targetFramework
-                GetCommandForTargetFramework
-                (fun workDir -> GetPaketLoadScriptLocation workDir (Some targetFramework))
-                AlterPackageManagementToolCommand
-                Seq.empty
-                implicitIncludeDir
-                fileName
-                packageManagerTextLines
+        let loadScript,additionalIncludeFolders =
+            packageManager.ResolveDependencies(
+                targetFramework,
+                Seq.empty,
+                implicitIncludeDir,
+                fileName,
+                packageManagerTextLines)
 
-        match referenceLoadingResult with 
-        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.DependencyManagerNotFound (implicitIncludeDir, userProfile) ->
-            errorR(Error(FSComp.SR.packageManagerNotFound(packageManager.ToolName,implicitIncludeDir, userProfile),m))
-            None
-        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->
-            errorR(Error(FSComp.SR.packageResolutionFailed(toolPath, workingDir, Environment.NewLine, msg),m))
-            None
-        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.Solved(loadScript,additionalIncludeFolders) -> 
-            Some(additionalIncludeFolders,loadScript,File.ReadAllText(loadScript))
+        Some(additionalIncludeFolders,loadScript,File.ReadAllText(loadScript))
     with e ->
         errorRecovery e m
         None
