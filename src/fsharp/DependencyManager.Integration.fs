@@ -11,9 +11,6 @@ open Microsoft.FSharp.Compiler.ErrorLogger
 // * to keep ReferenceLoading.PaketHandler usable outside of F# (so it can be used in scriptcs & others)
 // * to minimize footprint of integration in fsi/CompileOps
 
-/// hardcoded to load the "Main" group (implicit in paket)
-let scriptName = "main.group.fsx"
-
 /// hardcoded to net461 as we don't have fsi on netcore
 let targetFramework = "net461"
 
@@ -69,5 +66,5 @@ let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileN
 
         Some(additionalIncludeFolders,loadScript,File.ReadAllText(loadScript))
     with e ->
-        errorRecovery e m
+        errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
         None
