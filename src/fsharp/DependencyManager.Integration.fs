@@ -23,17 +23,16 @@ type IDependencyManagerProvider =
     abstract Name : string
     abstract ToolName: string
     abstract Key: string
-    abstract ResolveDependencies : string * string seq * string * string * string seq -> string * string list
+    abstract ResolveDependencies : string * string * string * string seq -> string * string list
 
 type PaketDependencyManager() =
     interface IDependencyManagerProvider with
         member __.Name = "Paket"
         member __.ToolName = "paket.exe"
         member __.Key = "paket"
-        member __.ResolveDependencies(targetFramework:string, prioritizedSearchPaths, scriptDir: string, scriptName: string, packageManagerTextLines: string seq) = 
+        member __.ResolveDependencies(targetFramework:string, scriptDir: string, scriptName: string, packageManagerTextLines: string seq) = 
             ReferenceLoading.PaketHandler.ResolveDependencies(
                 targetFramework,
-                prioritizedSearchPaths,
                 scriptDir,
                 scriptName,
                 packageManagerTextLines)
@@ -64,7 +63,6 @@ let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileN
         let loadScript,additionalIncludeFolders =
             packageManager.ResolveDependencies(
                 targetFramework,
-                Seq.empty,
                 implicitIncludeDir,
                 fileName,
                 packageManagerTextLines)
