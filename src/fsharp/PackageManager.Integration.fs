@@ -33,23 +33,39 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
 let GetCommandForTargetFramework targetFramework =
     ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
 
-type PackageManager = {
-    Prefix: string
-    ToolName: string
-    Name:string }
+type IPackageManagerProvider =
+    inherit System.IDisposable
+    abstract Name : string
+    abstract ToolName: string
+    abstract Key: string
 
-let RegisteredPackageManagers = lazy (
-    [ { Prefix = "paket:"
-        ToolName = "paket.exe"
-        Name = "Paket" }] 
+type PaketDependencyManager() =
+    interface IPackageManagerProvider with
+        member __.Name = "Paket"
+        member __.ToolName = "paket.exe"
+        member __.Key = "paket"
+
+    interface System.IDisposable with
+        member __.Dispose() = ()
+
+let registeredPackageManagers = lazy (
+    [ new PaketDependencyManager() :> IPackageManagerProvider ] // TODO: Load these
+    |> List.map (fun pm -> pm.Key,pm)
+    |> Map.ofList
 )
 
-let resolve (packageManager:PackageManager) implicitIncludeDir fileName m packageManagerTextLines =
-    try
-        let registered = RegisteredPackageManagers.Force()
-        if not (List.contains packageManager registered) then
-            errorR(Error(FSComp.SR.packageManagerUnknown(packageManager.Name, String.Join(", ", registered |> List.map (fun pm -> pm.Name))),m))
+let RegisteredPackageManagers() = registeredPackageManagers.Force()
 
+let tryFindPackageManagerInPath (path:string) : IPackageManagerProvider option =
+    match registeredPackageManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
+    | None -> None
+    | Some kv -> Some kv.Value
+
+let tryFindPackageManagerByKey (key:string) : IPackageManagerProvider option =
+    registeredPackageManagers.Force() |> Map.tryFind key
+
+let resolve (packageManager:IPackageManagerProvider) implicitIncludeDir fileName m packageManagerTextLines =
+    try
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
                 targetFramework

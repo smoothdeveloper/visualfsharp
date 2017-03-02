@@ -1223,12 +1223,12 @@ type internal FsiDynamicCompiler
         { istate with tcState = tcState.NextStateAfterIncrementalFragment(tcEnv); optEnv = optEnv }
 
 
-    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.PackageManager,m,text: string) =
-        let text = text.Substring(packageManager.Prefix.Length).Trim()
+    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,text: string) =
+        let text = text.Substring(packageManager.Key.Length + 1).Trim()
         
-        match tcConfigB.packageManagerLines |> Map.tryFind packageManager with
-        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager (lines @ [text,m]) tcConfigB.packageManagerLines
-        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager [text,m] tcConfigB.packageManagerLines
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManager.Key with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines @ [text,m]) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager.Key [text,m] tcConfigB.packageManagerLines
 
         needsPackageResolution <- true
          
@@ -1238,17 +1238,22 @@ type internal FsiDynamicCompiler
         
         let istate = ref istate
         for kv in tcConfigB.packageManagerLines do
-            let packageManager,packageManagerLines = kv.Key,kv.Value
+            let packageManagerKey,packageManagerLines = kv.Key,kv.Value
             match packageManagerLines with
             | [] -> ()
             | (_,m)::_ ->
                 let packageManagerTextLines = packageManagerLines |> List.map fst
-                match PackageManagerIntegration.resolve packageManager tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
-                | None -> () // error already reported
-                | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
-                    for folder in additionalIncludeFolders do 
-                        tcConfigB.AddIncludePath(m,folder,"")
-                    istate := fsiDynamicCompiler.EvalSourceFiles (ctok, !istate, m, [loadScript], lexResourceManager, errorLogger)
+                match PackageManagerIntegration.tryFindPackageManagerByKey packageManagerKey with
+                | None ->
+                    let registeredKeys = String.Join(", ", PackageManagerIntegration.RegisteredPackageManagers() |> Seq.map (fun kv -> kv.Value.Key))
+                    errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerKey, registeredKeys),m))
+                | Some packageManager ->
+                    match PackageManagerIntegration.resolve packageManager tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
+                    | None -> () // error already reported
+                    | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
+                        for folder in additionalIncludeFolders do 
+                            tcConfigB.AddIncludePath(m,folder,"")
+                        istate := fsiDynamicCompiler.EvalSourceFiles (ctok, !istate, m, [loadScript], lexResourceManager, errorLogger)
 
         !istate
 
@@ -1913,7 +1918,7 @@ type internal FsiInteractionProcessor
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                match PackageManagerIntegration.RegisteredPackageManagers.Force() |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                match PackageManagerIntegration.tryFindPackageManagerInPath (path:string) with                
                 | Some packageManager -> 
                     fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManager,m,path)
                     istate,Completed None

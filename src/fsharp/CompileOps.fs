@@ -2027,7 +2027,7 @@ type TcConfigBuilder =
       mutable conditionalCompilationDefines: string list
       mutable loadedSources: (range * string * string) list
       mutable referencedDLLs : AssemblyReference list
-      mutable packageManagerLines : Map<PackageManagerIntegration.PackageManager,(string*range) list>
+      mutable packageManagerLines : Map<string,(string*range) list>
       mutable projectReferences : IProjectReference list
       mutable knownUnresolvedReferences : UnresolvedAssemblyReference list
       optimizeForMemory: bool
@@ -2406,12 +2406,12 @@ type TcConfigBuilder =
              let projectReference = tcConfigB.projectReferences |> List.tryPick (fun pr -> if pr.FileName = path then Some pr else None)
              tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs ++ AssemblyReference(m,path,projectReference)
              
-    member tcConfigB.AddPackageManagerText (packageManager:PackageManagerIntegration.PackageManager,m,text:string) = 
-        let text = text.Substring(packageManager.Prefix.Length).Trim()
+    member tcConfigB.AddPackageManagerText (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,text:string) = 
+        let text = text.Substring(packageManager.Key.Length + 1).Trim()
 
-        match tcConfigB.packageManagerLines |> Map.tryFind packageManager with
-        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager (lines ++ (text,m)) tcConfigB.packageManagerLines
-        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager [text,m] tcConfigB.packageManagerLines
+        match tcConfigB.packageManagerLines |> Map.tryFind packageManager.Key with
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines ++ (text,m)) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager.Key [text,m] tcConfigB.packageManagerLines
              
     member tcConfigB.RemoveReferencedAssemblyByPath (m,path) =
         tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs |> List.filter (fun ar-> ar.Range <> m || ar.Text <> path)
@@ -4640,7 +4640,7 @@ let RequireDLL (ctok, tcImports:TcImports, tcEnv, thisAssemblyName, m, file) =
 let ProcessMetaCommandsFromInput 
      (nowarnF: 'state -> range * string -> 'state,
       dllRequireF: 'state -> range * string -> 'state,
-      packageRequireF: 'state -> PackageManagerIntegration.PackageManager * range * string -> 'state,
+      packageRequireF: 'state -> PackageManagerIntegration.IPackageManagerProvider * range * string -> 'state,
       loadSourceF: 'state -> range * string -> unit) 
      (tcConfig:TcConfigBuilder, inp, pathOfMetaCommandSource, state0) =
      
@@ -4675,7 +4675,7 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   match PackageManagerIntegration.RegisteredPackageManagers.Force() |> List.tryFind (fun packageManager -> path.StartsWith packageManager.Prefix) with
+                   match PackageManagerIntegration.tryFindPackageManagerInPath (path:string) with
                    | Some packageManager -> 
                        packageRequireF state (packageManager,m,path)
                    | None ->
@@ -4922,24 +4922,29 @@ module ScriptPreprocessClosure =
         // Resolve the packages
         let rec resolvePackageManagerSources() =
             [ for kv in tcConfig.Value.packageManagerLines do
-                let packageManager,packageManagerLines = kv.Key,kv.Value
+                let packageManagerKey,packageManagerLines = kv.Key,kv.Value
                 match packageManagerLines with
                 | [] -> ()
                 | (_,m)::_ ->
-                    match origTcConfig.packageManagerLines |> Map.tryFind packageManager with
+                    match origTcConfig.packageManagerLines |> Map.tryFind packageManagerKey with
                     | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
                     | _ ->
-                        let packageManagerTextLines = packageManagerLines |> List.map fst
-                        match PackageManagerIntegration.resolve packageManager tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
-                        | None -> () // error already reported
-                        | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
-                            // This may incrementally update tcConfig too with new #r references
-                            // New package text is ignored on this second phase
-                            let tcConfigB = tcConfig.Value.CloneOfOriginalBuilder
-                            for folder in additionalIncludeFolders do 
-                                tcConfigB.AddIncludePath(m,folder,"")
-                            tcConfig := TcConfig.Create(tcConfigB, validate=false)
-                            yield! loop (ClosureSource(loadScript,m,loadScriptText,true)) ]
+                        match PackageManagerIntegration.tryFindPackageManagerByKey packageManagerKey with
+                        | None ->
+                            let registeredKeys = String.Join(", ", PackageManagerIntegration.RegisteredPackageManagers() |> Seq.map (fun kv -> kv.Value.Key))
+                            errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerKey, registeredKeys),m))
+                        | Some packageManager ->
+                            let packageManagerTextLines = packageManagerLines |> List.map fst
+                            match PackageManagerIntegration.resolve packageManager tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
+                            | None -> () // error already reported
+                            | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
+                                // This may incrementally update tcConfig too with new #r references
+                                // New package text is ignored on this second phase
+                                let tcConfigB = tcConfig.Value.CloneOfOriginalBuilder
+                                for folder in additionalIncludeFolders do 
+                                    tcConfigB.AddIncludePath(m,folder,"")
+                                tcConfig := TcConfig.Create(tcConfigB, validate=false)
+                                yield! loop (ClosureSource(loadScript,m,loadScriptText,true)) ]
 
         and loop (ClosureSource(filename,m,source,parseRequired)) = 
             [   if not (observedSources.HaveSeen(filename)) then

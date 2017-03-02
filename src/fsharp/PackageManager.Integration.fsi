@@ -5,10 +5,14 @@ module internal Microsoft.FSharp.Compiler.PackageManagerIntegration
 
 open Microsoft.FSharp.Compiler.Range
 
-type PackageManager = {
-    Prefix: string
-    ToolName: string
-    Name:string }
+type IPackageManagerProvider =
+    inherit System.IDisposable
+    abstract Name : string
+    abstract ToolName: string
+    abstract Key: string
 
-val RegisteredPackageManagers : Lazy<PackageManager list>
-val resolve : PackageManager -> string -> string  -> range -> string list -> (string list * string * string) option
+val RegisteredPackageManagers : unit -> Map<string,IPackageManagerProvider>
+val tryFindPackageManagerInPath : string -> IPackageManagerProvider option
+val tryFindPackageManagerByKey : string -> IPackageManagerProvider option
+
+val resolve : IPackageManagerProvider -> string -> string  -> range -> string list -> (string list * string * string) option
