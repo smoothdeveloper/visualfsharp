@@ -1223,8 +1223,8 @@ type internal FsiDynamicCompiler
         { istate with tcState = tcState.NextStateAfterIncrementalFragment(tcEnv); optEnv = optEnv }
 
 
-    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,path: string) =
-        let path = PackageManagerIntegration.removePackageManagerKey packageManager.Key path
+    member __.EvalDependencyManagerTextFragment (packageManager:DependencyManagerIntegration.IDependencyManagerProvider,m,path: string) =
+        let path = DependencyManagerIntegration.removeDependencyManagerKey packageManager.Key path
         
         match tcConfigB.packageManagerLines |> Map.tryFind packageManager.Key with
         | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines @ [path,m]) tcConfigB.packageManagerLines
@@ -1232,7 +1232,7 @@ type internal FsiDynamicCompiler
 
         needsPackageResolution <- true
          
-    member fsiDynamicCompiler.CommitPackageManagerText (ctok, istate: FsiDynamicCompilerState, lexResourceManager, errorLogger) = 
+    member fsiDynamicCompiler.CommitDependencyManagerText (ctok, istate: FsiDynamicCompilerState, lexResourceManager, errorLogger) = 
         if not needsPackageResolution then istate else
         needsPackageResolution <- false
         
@@ -1243,12 +1243,12 @@ type internal FsiDynamicCompiler
             | [] -> ()
             | (_,m)::_ ->
                 let packageManagerTextLines = packageManagerLines |> List.map fst
-                match PackageManagerIntegration.tryFindPackageManagerByKey packageManagerKey with
+                match DependencyManagerIntegration.tryFindDependencyManagerByKey packageManagerKey with
                 | None ->
-                    let registeredKeys = String.Join(", ", PackageManagerIntegration.RegisteredPackageManagers() |> Seq.map (fun kv -> kv.Value.Key))
+                    let registeredKeys = String.Join(", ", DependencyManagerIntegration.RegisteredDependencyManagers() |> Seq.map (fun kv -> kv.Value.Key))
                     errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerKey, registeredKeys),m))
                 | Some packageManager ->
-                    match PackageManagerIntegration.resolve packageManager tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
+                    match DependencyManagerIntegration.resolve packageManager tcConfigB.implicitIncludeDir "stdin.fsx" m packageManagerTextLines with
                     | None -> () // error already reported
                     | Some (additionalIncludeFolders, loadScript,_loadScriptText) -> 
                         for folder in additionalIncludeFolders do 
@@ -1264,7 +1264,7 @@ type internal FsiDynamicCompiler
                ProcessMetaCommandsFromInput 
                    ((fun st (m,nm) -> tcConfigB.TurnWarningOff(m,nm); st),
                     (fun st (m,nm) -> snd (fsiDynamicCompiler.EvalRequireReference (ctok, st, m, nm))),
-                    (fun st (packageManagerPrefix,m,nm) -> fsiDynamicCompiler.EvalPackageManagerTextFragment (packageManagerPrefix,m,nm); st),
+                    (fun st (packageManagerPrefix,m,nm) -> fsiDynamicCompiler.EvalDependencyManagerTextFragment (packageManagerPrefix,m,nm); st),
                     (fun _ _ -> ()))  
                    (tcConfigB, inp, Path.GetDirectoryName sourceFile, istate))
       
@@ -1902,25 +1902,25 @@ type internal FsiInteractionProcessor
         istate |> InteractiveCatch errorLogger (fun istate -> 
             match action with 
             | IDefns ([  ],_) ->
-                let istate = fsiDynamicCompiler.CommitPackageManagerText(ctok, istate, lexResourceManager, errorLogger) 
+                let istate = fsiDynamicCompiler.CommitDependencyManagerText(ctok, istate, lexResourceManager, errorLogger) 
                 istate,Completed None
 
             | IDefns ([  SynModuleDecl.DoExpr(_,expr,_)],_) ->
-                let istate = fsiDynamicCompiler.CommitPackageManagerText(ctok, istate, lexResourceManager, errorLogger) 
+                let istate = fsiDynamicCompiler.CommitDependencyManagerText(ctok, istate, lexResourceManager, errorLogger) 
                 fsiDynamicCompiler.EvalParsedExpression(ctok, errorLogger, istate, expr)
 
             | IDefns (defs,_) -> 
-                let istate = fsiDynamicCompiler.CommitPackageManagerText(ctok, istate, lexResourceManager, errorLogger) 
+                let istate = fsiDynamicCompiler.CommitDependencyManagerText(ctok, istate, lexResourceManager, errorLogger) 
                 fsiDynamicCompiler.EvalParsedDefinitions (ctok, errorLogger, istate, true, false, defs),Completed None
 
             | IHash (ParsedHashDirective("load",sourceFiles,m),_) -> 
-                let istate = fsiDynamicCompiler.CommitPackageManagerText(ctok, istate, lexResourceManager, errorLogger) 
+                let istate = fsiDynamicCompiler.CommitDependencyManagerText(ctok, istate, lexResourceManager, errorLogger) 
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                match PackageManagerIntegration.tryFindPackageManagerInPath (path:string) with                
+                match DependencyManagerIntegration.tryFindDependencyManagerInPath (path:string) with                
                 | Some packageManager -> 
-                    fsiDynamicCompiler.EvalPackageManagerTextFragment(packageManager,m,path)
+                    fsiDynamicCompiler.EvalDependencyManagerTextFragment(packageManager,m,path)
                     istate,Completed None
                 | None ->
                     let resolutions,istate = fsiDynamicCompiler.EvalRequireReference(ctok, istate, m, path)

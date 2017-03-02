@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
-/// Helper members to integrate PackageManagers into F# codebase
-module internal Microsoft.FSharp.Compiler.PackageManagerIntegration
+/// Helper members to integrate DependencyManagers into F# codebase
+module internal Microsoft.FSharp.Compiler.DependencyManagerIntegration
 
 open System
 open System.IO
@@ -31,16 +31,16 @@ let GetPaketLoadScriptLocation baseDir optionalFrameworkDir =
     ReferenceLoading.PaketHandler.GetPaketLoadScriptLocation baseDir optionalFrameworkDir scriptName
 
 let GetCommandForTargetFramework targetFramework =
-    ReferenceLoading.PaketHandler.MakePackageManagerCommand "fsx" targetFramework
+    ReferenceLoading.PaketHandler.MakeDependencyManagerCommand "fsx" targetFramework
 
-type IPackageManagerProvider =
+type IDependencyManagerProvider =
     inherit System.IDisposable
     abstract Name : string
     abstract ToolName: string
     abstract Key: string
 
 type PaketDependencyManager() =
-    interface IPackageManagerProvider with
+    interface IDependencyManagerProvider with
         member __.Name = "Paket"
         member __.ToolName = "paket.exe"
         member __.Key = "paket"
@@ -48,25 +48,25 @@ type PaketDependencyManager() =
     interface System.IDisposable with
         member __.Dispose() = ()
 
-let registeredPackageManagers = lazy (
-    [ new PaketDependencyManager() :> IPackageManagerProvider ] // TODO: Load these
+let registeredDependencyManagers = lazy (
+    [ new PaketDependencyManager() :> IDependencyManagerProvider ] // TODO: Load these
     |> List.map (fun pm -> pm.Key,pm)
     |> Map.ofList
 )
 
-let RegisteredPackageManagers() = registeredPackageManagers.Force()
+let RegisteredDependencyManagers() = registeredDependencyManagers.Force()
 
-let tryFindPackageManagerInPath (path:string) : IPackageManagerProvider option =
-    match registeredPackageManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
+let tryFindDependencyManagerInPath (path:string) : IDependencyManagerProvider option =
+    match registeredDependencyManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
     | None -> None
     | Some kv -> Some kv.Value
 
-let removePackageManagerKey (packageManagerKey:string) (path:string) = path.Substring(packageManagerKey.Length + 1).Trim()
+let removeDependencyManagerKey (packageManagerKey:string) (path:string) = path.Substring(packageManagerKey.Length + 1).Trim()
 
-let tryFindPackageManagerByKey (key:string) : IPackageManagerProvider option =
-    registeredPackageManagers.Force() |> Map.tryFind key
+let tryFindDependencyManagerByKey (key:string) : IDependencyManagerProvider option =
+    registeredDependencyManagers.Force() |> Map.tryFind key
 
-let resolve (packageManager:IPackageManagerProvider) implicitIncludeDir fileName m packageManagerTextLines =
+let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileName m packageManagerTextLines =
     try
         let referenceLoadingResult =
             ReferenceLoading.PaketHandler.Internals.ResolvePackages
@@ -80,7 +80,7 @@ let resolve (packageManager:IPackageManagerProvider) implicitIncludeDir fileName
                 packageManagerTextLines
 
         match referenceLoadingResult with 
-        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageManagerNotFound (implicitIncludeDir, userProfile) ->
+        | ReferenceLoading.PaketHandler.ReferenceLoadingResult.DependencyManagerNotFound (implicitIncludeDir, userProfile) ->
             errorR(Error(FSComp.SR.packageManagerNotFound(packageManager.ToolName,implicitIncludeDir, userProfile),m))
             None
         | ReferenceLoading.PaketHandler.ReferenceLoadingResult.PackageResolutionFailed (toolPath, workingDir, msg) ->

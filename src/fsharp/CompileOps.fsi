@@ -662,7 +662,7 @@ val RequireDLL : CompilationThreadToken * TcImports * TcEnv * thisAssemblyName: 
 
 /// Processing # commands
 val ProcessMetaCommandsFromInput : 
-    (('T -> range * string -> 'T) * ('T -> range * string -> 'T) * ('T -> PackageManagerIntegration.IPackageManagerProvider * range * string -> 'T) * ('T -> range * string -> unit)) 
+    (('T -> range * string -> 'T) * ('T -> range * string -> 'T) * ('T -> DependencyManagerIntegration.IDependencyManagerProvider * range * string -> 'T) * ('T -> range * string -> unit)) 
     -> TcConfigBuilder * Ast.ParsedInput * string * 'T 
     -> 'T
 

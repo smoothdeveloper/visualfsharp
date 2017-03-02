@@ -2406,8 +2406,8 @@ type TcConfigBuilder =
              let projectReference = tcConfigB.projectReferences |> List.tryPick (fun pr -> if pr.FileName = path then Some pr else None)
              tcConfigB.referencedDLLs <- tcConfigB.referencedDLLs ++ AssemblyReference(m,path,projectReference)
              
-    member tcConfigB.AddPackageManagerText (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,path:string) = 
-        let path = PackageManagerIntegration.removePackageManagerKey packageManager.Key path
+    member tcConfigB.AddDependencyManagerText (packageManager:DependencyManagerIntegration.IDependencyManagerProvider,m,path:string) = 
+        let path = DependencyManagerIntegration.removeDependencyManagerKey packageManager.Key path
 
         match tcConfigB.packageManagerLines |> Map.tryFind packageManager.Key with
         | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines ++ (path,m)) tcConfigB.packageManagerLines
@@ -4640,7 +4640,7 @@ let RequireDLL (ctok, tcImports:TcImports, tcEnv, thisAssemblyName, m, file) =
 let ProcessMetaCommandsFromInput 
      (nowarnF: 'state -> range * string -> 'state,
       dllRequireF: 'state -> range * string -> 'state,
-      packageRequireF: 'state -> PackageManagerIntegration.IPackageManagerProvider * range * string -> 'state,
+      packageRequireF: 'state -> DependencyManagerIntegration.IDependencyManagerProvider * range * string -> 'state,
       loadSourceF: 'state -> range * string -> unit) 
      (tcConfig:TcConfigBuilder, inp, pathOfMetaCommandSource, state0) =
      
@@ -4675,7 +4675,7 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   match PackageManagerIntegration.tryFindPackageManagerInPath (path:string) with
+                   match DependencyManagerIntegration.tryFindDependencyManagerInPath (path:string) with
                    | Some packageManager -> 
                        packageRequireF state (packageManager,m,path)
                    | None ->
@@ -4758,9 +4758,9 @@ let ApplyNoWarnsToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pathOfMetaComman
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let addNoWarn = fun () (m,s) -> tcConfigB.TurnWarningOff(m, s)
     let addReferencedAssemblyByPath = fun () (_m,_s) -> ()
-    let addPackageManagerText = fun () (_prefix,_m,_s) -> ()
+    let addDependencyManagerText = fun () (_prefix,_m,_s) -> ()
     let addLoadedSource = fun () (_m,_s) -> ()
-    ProcessMetaCommandsFromInput (addNoWarn, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
+    ProcessMetaCommandsFromInput (addNoWarn, addReferencedAssemblyByPath, addDependencyManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
 
 let ApplyMetaCommandsFromInputToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pathOfMetaCommandSource) = 
@@ -4768,9 +4768,9 @@ let ApplyMetaCommandsFromInputToTcConfig (tcConfig:TcConfig, inp:ParsedInput, pa
     let tcConfigB = tcConfig.CloneOfOriginalBuilder 
     let getWarningNumber = fun () _ -> () 
     let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-    let addPackageManagerText = fun () (packageManager, m,s) -> tcConfigB.AddPackageManagerText(packageManager,m,s)
+    let addDependencyManagerText = fun () (packageManager, m,s) -> tcConfigB.AddDependencyManagerText(packageManager,m,s)
     let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
-    ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
+    ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addDependencyManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
     TcConfig.Create(tcConfigB, validate=false)
 
 //----------------------------------------------------------------------------
@@ -4899,10 +4899,10 @@ module ScriptPreprocessClosure =
         let nowarns = ref [] 
         let getWarningNumber = fun () (m,s) -> nowarns := (s,m) :: !nowarns
         let addReferencedAssemblyByPath = fun () (m,s) -> tcConfigB.AddReferencedAssemblyByPath(m,s)
-        let addPackageManagerText = fun () (packageManagerPrefix,m,s) -> tcConfigB.AddPackageManagerText(packageManagerPrefix,m,s)
+        let addDependencyManagerText = fun () (packageManagerPrefix,m,s) -> tcConfigB.AddDependencyManagerText(packageManagerPrefix,m,s)
         let addLoadedSource = fun () (m,s) -> tcConfigB.AddLoadedSource(m,s,pathOfMetaCommandSource)
         try 
-            ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addPackageManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
+            ProcessMetaCommandsFromInput (getWarningNumber, addReferencedAssemblyByPath, addDependencyManagerText, addLoadedSource) (tcConfigB, inp, pathOfMetaCommandSource, ())
         with ReportedError _ ->
             // Recover by using whatever did end up in the tcConfig
             ()
@@ -4920,22 +4920,22 @@ module ScriptPreprocessClosure =
         let observedSources = Observed()
         
         // Resolve the packages
-        let rec resolvePackageManagerSources() =
+        let rec resolveDependencyManagerSources() =
             [ for kv in tcConfig.Value.packageManagerLines do
                 let packageManagerKey,packageManagerLines = kv.Key,kv.Value
                 match packageManagerLines with
                 | [] -> ()
                 | (_,m)::_ ->
                     match origTcConfig.packageManagerLines |> Map.tryFind packageManagerKey with
-                    | Some oldPackageManagerLines when oldPackageManagerLines = packageManagerLines -> ()
+                    | Some oldDependencyManagerLines when oldDependencyManagerLines = packageManagerLines -> ()
                     | _ ->
-                        match PackageManagerIntegration.tryFindPackageManagerByKey packageManagerKey with
+                        match DependencyManagerIntegration.tryFindDependencyManagerByKey packageManagerKey with
                         | None ->
-                            let registeredKeys = String.Join(", ", PackageManagerIntegration.RegisteredPackageManagers() |> Seq.map (fun kv -> kv.Value.Key))
+                            let registeredKeys = String.Join(", ", DependencyManagerIntegration.RegisteredDependencyManagers() |> Seq.map (fun kv -> kv.Value.Key))
                             errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerKey, registeredKeys),m))
                         | Some packageManager ->
                             let packageManagerTextLines = packageManagerLines |> List.map fst
-                            match PackageManagerIntegration.resolve packageManager tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
+                            match DependencyManagerIntegration.resolve packageManager tcConfig.Value.implicitIncludeDir mainFile m packageManagerTextLines with
                             | None -> () // error already reported
                             | Some (additionalIncludeFolders,loadScript,loadScriptText) ->
                                 // This may incrementally update tcConfig too with new #r references
@@ -4969,7 +4969,7 @@ module ScriptPreprocessClosure =
                             tcConfig := tcConfigResult // We accumulate the tcConfig in order to collect assembly references
                             
                             if filename = mainFile then
-                                yield! resolvePackageManagerSources()
+                                yield! resolveDependencyManagerSources()
 
                             let postSources = (!tcConfig).GetAvailableLoadedSources()
                             let sources = if preSources.Length < postSources.Length then postSources.[preSources.Length..] else []
