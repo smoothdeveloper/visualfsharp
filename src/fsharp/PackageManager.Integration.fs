@@ -61,6 +61,8 @@ let tryFindPackageManagerInPath (path:string) : IPackageManagerProvider option =
     | None -> None
     | Some kv -> Some kv.Value
 
+let removePackageManagerKey (packageManagerKey:string) (path:string) = path.Substring(packageManagerKey.Length + 1).Trim()
+
 let tryFindPackageManagerByKey (key:string) : IPackageManagerProvider option =
     registeredPackageManagers.Force() |> Map.tryFind key
 

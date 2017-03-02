@@ -15,4 +15,6 @@ val RegisteredPackageManagers : unit -> Map<string,IPackageManagerProvider>
 val tryFindPackageManagerInPath : string -> IPackageManagerProvider option
 val tryFindPackageManagerByKey : string -> IPackageManagerProvider option
 
+val removePackageManagerKey : string -> string -> string
+
 val resolve : IPackageManagerProvider -> string -> string  -> range -> string list -> (string list * string * string) option

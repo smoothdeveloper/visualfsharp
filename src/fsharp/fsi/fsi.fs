@@ -1223,12 +1223,12 @@ type internal FsiDynamicCompiler
         { istate with tcState = tcState.NextStateAfterIncrementalFragment(tcEnv); optEnv = optEnv }
 
 
-    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,text: string) =
-        let text = text.Substring(packageManager.Key.Length + 1).Trim()
+    member __.EvalPackageManagerTextFragment (packageManager:PackageManagerIntegration.IPackageManagerProvider,m,path: string) =
+        let path = PackageManagerIntegration.removePackageManagerKey packageManager.Key path
         
         match tcConfigB.packageManagerLines |> Map.tryFind packageManager.Key with
-        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines @ [text,m]) tcConfigB.packageManagerLines
-        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager.Key [text,m] tcConfigB.packageManagerLines
+        | Some lines -> tcConfigB.packageManagerLines <- Map.add packageManager.Key (lines @ [path,m]) tcConfigB.packageManagerLines
+        | _ -> tcConfigB.packageManagerLines <- Map.add packageManager.Key [path,m] tcConfigB.packageManagerLines
 
         needsPackageResolution <- true
          
