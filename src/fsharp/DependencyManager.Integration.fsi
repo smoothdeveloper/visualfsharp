@@ -14,7 +14,7 @@ type IDependencyManagerProvider =
 
 val RegisteredDependencyManagers : unit -> Map<string,IDependencyManagerProvider>
 val tryFindDependencyManagerInPath : range -> string -> IDependencyManagerProvider option
-val tryFindDependencyManagerByKey : string -> IDependencyManagerProvider option
+val tryFindDependencyManagerByKey : range -> string -> IDependencyManagerProvider option
 
 val removeDependencyManagerKey : string -> string -> string
 

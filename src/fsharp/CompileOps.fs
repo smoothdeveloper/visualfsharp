@@ -4929,7 +4929,7 @@ module ScriptPreprocessClosure =
                     match origTcConfig.packageManagerLines |> Map.tryFind packageManagerKey with
                     | Some oldDependencyManagerLines when oldDependencyManagerLines = packageManagerLines -> ()
                     | _ ->
-                        match DependencyManagerIntegration.tryFindDependencyManagerByKey packageManagerKey with
+                        match DependencyManagerIntegration.tryFindDependencyManagerByKey m packageManagerKey with
                         | None ->
                             let registeredKeys = String.Join(", ", DependencyManagerIntegration.RegisteredDependencyManagers() |> Seq.map (fun kv -> kv.Value.Key))
                             errorR(Error(FSComp.SR.packageManagerUnknown(packageManagerKey, registeredKeys),m))

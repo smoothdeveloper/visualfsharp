@@ -131,8 +131,13 @@ let tryFindDependencyManagerInPath m (path:string) : IDependencyManagerProvider 
 
 let removeDependencyManagerKey (packageManagerKey:string) (path:string) = path.Substring(packageManagerKey.Length + 1).Trim()
 
-let tryFindDependencyManagerByKey (key:string) : IDependencyManagerProvider option =
-    registeredDependencyManagers.Force() |> Map.tryFind key
+let tryFindDependencyManagerByKey m (key:string) : IDependencyManagerProvider option =
+    try
+        registeredDependencyManagers.Force() |> Map.tryFind key
+    with 
+    | e -> 
+        errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
+        None
 
 let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileName m packageManagerTextLines =
     try
