@@ -17,6 +17,12 @@ let targetFramework = "net461"
 
 
 module ReflectionHelper =
+    let assemblyHasAttribute (theAssembly: Assembly) attributeName =
+        try
+            theAssembly.GetCustomAttributes false
+            |> Seq.tryFind (fun a -> a.GetType().Name = attributeName)
+            |> function | Some _ -> true | _ -> false
+        with | _ -> false
     let getAttributeNamed (theType: Type) attributeName =
         try
             theType.GetCustomAttributes false
@@ -96,6 +102,7 @@ let registeredDependencyManagers = lazy (
     let managers =
         // TODO: need to replace this
         [Assembly.Load("FSharp.DependencyManager.Paket")]
+        |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpCompilerExtensibilityAttribute")
         |> Seq.collect (fun a -> a.GetTypes())
         |> Seq.choose ReflectionDependencyManagerProvider.InstanceMaker
         |> Seq.map (fun maker -> maker ())
