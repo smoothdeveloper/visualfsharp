@@ -150,5 +150,8 @@ let resolve (packageManager:IDependencyManagerProvider) implicitIncludeDir fileN
 
         Some(additionalIncludeFolders,loadScript,File.ReadAllText(loadScript))
     with e ->
-        errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
+        if e.InnerException <> null then
+            errorR(Error(FSComp.SR.packageManagerError(e.InnerException.Message),m))
+        else
+            errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
         None
