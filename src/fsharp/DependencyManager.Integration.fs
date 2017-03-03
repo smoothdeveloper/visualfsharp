@@ -104,7 +104,8 @@ let registeredDependencyManagers = lazy (
 
     let managers =
         // TODO: need to replace this
-        [Assembly.Load(Path.Combine(assemblySearchPath,"FSharp.DependencyManager.Paket"))]
+        [Path.Combine(assemblySearchPath,"FSharp.DependencyManager.Paket.dll")]
+        |> Seq.map (fun path -> Assembly.LoadFrom path)
         |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpCompilerExtensibilityAttribute")
         |> Seq.collect (fun a -> a.GetTypes())
         |> Seq.choose ReflectionDependencyManagerProvider.InstanceMaker
