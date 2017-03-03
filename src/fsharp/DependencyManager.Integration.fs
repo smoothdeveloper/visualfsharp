@@ -115,10 +115,15 @@ let registeredDependencyManagers = lazy (
 
 let RegisteredDependencyManagers() = registeredDependencyManagers.Force()
 
-let tryFindDependencyManagerInPath (path:string) : IDependencyManagerProvider option =
-    match registeredDependencyManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
-    | None -> None
-    | Some kv -> Some kv.Value
+let tryFindDependencyManagerInPath m (path:string) : IDependencyManagerProvider option =
+    try
+        match registeredDependencyManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
+        | None -> None
+        | Some kv -> Some kv.Value
+    with 
+    | e -> 
+        errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
+        None
 
 let removeDependencyManagerKey (packageManagerKey:string) (path:string) = path.Substring(packageManagerKey.Length + 1).Trim()
 

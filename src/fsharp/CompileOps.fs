@@ -4675,7 +4675,7 @@ let ProcessMetaCommandsFromInput
                match args with 
                | [path] -> 
                    matchedm<-m
-                   match DependencyManagerIntegration.tryFindDependencyManagerInPath (path:string) with
+                   match DependencyManagerIntegration.tryFindDependencyManagerInPath m (path:string) with
                    | Some packageManager -> 
                        packageRequireF state (packageManager,m,path)
                    | None ->

@@ -1918,7 +1918,7 @@ type internal FsiInteractionProcessor
                 fsiDynamicCompiler.EvalSourceFiles (ctok, istate, m, sourceFiles, lexResourceManager, errorLogger),Completed None
 
             | IHash (ParsedHashDirective(("reference" | "r"),[path],m),_) -> 
-                match DependencyManagerIntegration.tryFindDependencyManagerInPath (path:string) with                
+                match DependencyManagerIntegration.tryFindDependencyManagerInPath m (path:string) with
                 | Some packageManager -> 
                     fsiDynamicCompiler.EvalDependencyManagerTextFragment(packageManager,m,path)
                     istate,Completed None
