@@ -99,9 +99,12 @@ type ReflectionDependencyManagerProvider(theType: Type, nameProperty: PropertyIn
         member __.Dispose () = instance.Dispose()
             
 let registeredDependencyManagers = lazy (
+    let assemblyLocation = System.Reflection.Assembly.GetAssembly(typeof<IDependencyManagerProvider>).Location
+    let assemblySearchPath = Path.GetDirectoryName assemblyLocation
+
     let managers =
         // TODO: need to replace this
-        [Assembly.Load("FSharp.DependencyManager.Paket")]
+        [Assembly.Load(Path.Combine(assemblySearchPath,"FSharp.DependencyManager.Paket"))]
         |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpCompilerExtensibilityAttribute")
         |> Seq.collect (fun a -> a.GetTypes())
         |> Seq.choose ReflectionDependencyManagerProvider.InstanceMaker
