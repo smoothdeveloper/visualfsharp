@@ -98,14 +98,18 @@ type ReflectionDependencyManagerProvider(theType: Type, nameProperty: PropertyIn
     interface IDisposable with
         member __.Dispose () = instance.Dispose()
             
-let registeredDependencyManagers = lazy (
-    let assemblyLocation = System.Reflection.Assembly.GetAssembly(typeof<IDependencyManagerProvider>).Location
-    let assemblySearchPath = Path.GetDirectoryName assemblyLocation
 
+let enumerateDependencyManagerAssembliesFromCurrentAssemblyLocation () =
+    let assemblyLocation = typeof<IDependencyManagerProvider>.Assembly.Location
+    let assemblySearchPath = Path.GetDirectoryName assemblyLocation
+    Directory.EnumerateFiles(assemblySearchPath,"*DependencyManager*.dll")
+    |> Seq.choose (fun path -> try Assembly.LoadFrom path |> Some with | _ -> None)
+    |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpDependencyManagerAttribute")
+
+let registeredDependencyManagers = lazy (
+    
     let managers =
-        Directory.EnumerateFiles(assemblySearchPath,"*DependencyManager*.dll")
-        |> Seq.map (fun path -> Assembly.LoadFrom path)
-        |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpDependencyManagerAttribute")
+        enumerateDependencyManagerAssembliesFromCurrentAssemblyLocation()
         |> Seq.collect (fun a -> a.GetTypes())
         |> Seq.choose ReflectionDependencyManagerProvider.InstanceMaker
         |> Seq.map (fun maker -> maker ())
@@ -120,7 +124,7 @@ let RegisteredDependencyManagers() = registeredDependencyManagers.Force()
 
 let tryFindDependencyManagerInPath m (path:string) : IDependencyManagerProvider option =
     try
-        match registeredDependencyManagers.Force() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
+        match RegisteredDependencyManagers() |> Seq.tryFind (fun kv -> path.StartsWith(kv.Value.Key + ":" )) with
         | None -> None
         | Some kv -> Some kv.Value
     with 
@@ -132,7 +136,7 @@ let removeDependencyManagerKey (packageManagerKey:string) (path:string) = path.S
 
 let tryFindDependencyManagerByKey m (key:string) : IDependencyManagerProvider option =
     try
-        registeredDependencyManagers.Force() |> Map.tryFind key
+        RegisteredDependencyManagers() |> Map.tryFind key
     with 
     | e -> 
         errorR(Error(FSComp.SR.packageManagerError(e.Message),m))
