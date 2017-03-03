@@ -71,7 +71,7 @@ type ReflectionDependencyManagerProvider(theType: Type, nameProperty: PropertyIn
         if not (ReflectionHelper.implements<IDisposable> theType) then None
         else
         // maybe CE might be better
-        match ReflectionHelper.getAttributeNamed theType "FSharpCompilerExtensibilityAttribute" with
+        match ReflectionHelper.getAttributeNamed theType "FSharpDependencyManagerAttribute" with
         | None -> None
         | Some _ ->
         match ReflectionHelper.getInstanceProperty<string> theType Array.empty "Name" with
@@ -103,10 +103,9 @@ let registeredDependencyManagers = lazy (
     let assemblySearchPath = Path.GetDirectoryName assemblyLocation
 
     let managers =
-        // TODO: need to replace this
-        [Path.Combine(assemblySearchPath,"FSharp.DependencyManager.Paket.dll")]
+        Directory.EnumerateFiles(assemblySearchPath,"*DependencyManager*.dll")
         |> Seq.map (fun path -> Assembly.LoadFrom path)
-        |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpCompilerExtensibilityAttribute")
+        |> Seq.filter (fun a -> ReflectionHelper.assemblyHasAttribute a "FSharpDependencyManagerAttribute")
         |> Seq.collect (fun a -> a.GetTypes())
         |> Seq.choose ReflectionDependencyManagerProvider.InstanceMaker
         |> Seq.map (fun maker -> maker ())

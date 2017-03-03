@@ -1,7 +1,7 @@
 ﻿namespace Microsoft.FSharp.DependencyManager.Paket
-type [<Class>] FSharpCompilerExtensibilityAttribute =
+type [<Class>] FSharpDependencyManagerAttribute =
     inherit System.Attribute
-    new : unit -> FSharpCompilerExtensibilityAttribute
+    new : unit -> FSharpDependencyManagerAttribute
 type [<Class>] PaketDependencyManager =
     interface System.IDisposable
     new : unit -> PaketDependencyManager
