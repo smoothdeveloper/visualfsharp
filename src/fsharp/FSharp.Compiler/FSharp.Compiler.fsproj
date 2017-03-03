@@ -471,9 +471,6 @@
     <Compile Include="..\IlxGen.fs">
       <Link>CodeGen\IlxGen.fs</Link>
     </Compile>
-    <Compile Include="..\ReferenceLoading.PaketHandler.fs">
-      <Link>Driver\ReferenceLoading.PaketHandler.fs</Link>
-    </Compile>
     <Compile Include="..\DependencyManager.Integration.fsi">
       <Link>Driver\DependencyManager.Integration.fsi</Link>
     </Compile>
