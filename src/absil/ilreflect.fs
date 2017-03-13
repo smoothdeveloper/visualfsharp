@@ -673,23 +673,20 @@ let queryableTypeGetMethodBySearch cenv emEnv parentT (mref:ILMethodRef) =
     | [methInfo] -> 
         methInfo
     | _ ->
-      (* Second, type match. Note type erased (non-generic) F# code would not type match but they have unique names *)
-
+        (* Second, type match. Note type erased (non-generic) F# code would not type match but they have unique names *)
         let satisfiesParameter (a: Type option) (p: Type) =
             match a with
             | None -> true
             | Some a ->
-            if 
-                // obvious case
-                p.IsAssignableFrom a 
-            then true
-            elif
-                // both are generic
-                p.IsGenericType && a.IsGenericType 
-                // non obvious due to contravariance: Action<T> where T : IFoo accepts Action<FooImpl> (for FooImpl : IFoo)
-                && p.GetGenericTypeDefinition().IsAssignableFrom(a.GetGenericTypeDefinition()) 
-            then true
-            else false
+                if 
+                    p.IsAssignableFrom a 
+                then true
+                elif
+                    p.IsGenericType && a.IsGenericType 
+                    // non obvious due to contravariance: Action<T> where T : IFoo accepts Action<FooImpl> (for FooImpl : IFoo)
+                    && p.GetGenericTypeDefinition().IsAssignableFrom(a.GetGenericTypeDefinition()) 
+                then true
+                else false
 
         let satisfiesAllParameters (args: Type option array) (ps: Type array) =
             if Array.length args <> Array.length ps then false
@@ -701,7 +698,7 @@ let queryableTypeGetMethodBySearch cenv emEnv parentT (mref:ILMethodRef) =
             
             if mtyargTIs.Length <> mref.GenericArity then false (* method generic arity mismatch *) else
 
-          (* methInfo implied Types *)
+            (* methInfo implied Types *)
             let methodParameters = methInfo.GetParameters()
             let argTypes = mref.ArgTypes |> List.toArray
             if argTypes.Length <> methodParameters.Length then false (* method argument length mismatch *) else
@@ -723,7 +720,7 @@ let queryableTypeGetMethodBySearch cenv emEnv parentT (mref:ILMethodRef) =
                 argTs,resT 
           
             let haveResT  = methInfo.ReturnType
-          (* check for match *)
+            (* check for match *)
             if argTs.Length <> methodParameters.Length then false (* method argument length mismatch *) else
             let res = equalTypes resT haveResT && equalTypeLists argTs (haveArgTs |> Array.toList)
             res
