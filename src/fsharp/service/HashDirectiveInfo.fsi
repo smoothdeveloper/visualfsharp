@@ -2,16 +2,6 @@
 
 namespace FSharp.Compiler.SourceCodeServices
 
-module PathUtils =
-    [<Sealed>]
-    type Path =
-        /// Calls <see cref="System.IO.Path.GetFullPath"/> or returns <see paramref="path"/> in case of an exception.
-        static member GetFullPathSafe : path: string -> string
-        /// Calls <see cref="System.IO.Path.GetFileName"/> or returns <see paramref="path"/> in case of an exception.
-        static member GetFileNameSafe : path: string -> string
-    /// Operator calling <see cref="System.IO.Path.Combine" />
-    val (</>) : string -> string -> string
-
 module HashDirectiveInfo =
     open FSharp.Compiler.Range
     open FSharp.Compiler.Ast

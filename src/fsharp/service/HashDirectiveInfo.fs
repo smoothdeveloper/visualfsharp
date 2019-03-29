@@ -4,23 +4,7 @@ namespace FSharp.Compiler.SourceCodeServices
 
 open FSharp.Compiler.AbstractIL.Internal.Library
 
-module PathUtils = 
-    open System.IO
-    //[<Sealed>]
-    //type Path =
-    //    static member GetFullPathSafe path =
-    //        try Path.GetFullPath path
-    //        with _ -> path
-    //
-    //    static member GetFileNameSafe path =
-    //        try Path.GetFileName path
-    //        with _ -> path
-
-    let (</>) a b = Path.Combine(a, b)
-
 module HashDirectiveInfo =
-    open System.IO
-    open PathUtils
     open FSharp.Compiler.Range
     open FSharp.Compiler.Ast
 
@@ -58,12 +42,11 @@ module HashDirectiveInfo =
         // list of #I directives so far (populated while encountering those in order)
         let pushInclude, tryFindInPathsIncludedSoFar =
             let includesSoFar = ResizeArray<_>()
-            
             includesSoFar.Add,
             fun fileName ->
                 includesSoFar 
                 |> Seq.tryPick (fun (ResolvedDirectory d) ->
-                    let filePath = d </> fileName 
+                    let filePath = System.IO.Path.Combine(d, fileName)
                     if FileSystem.SafeExists filePath then
                       Some filePath
                     else 
@@ -73,7 +56,7 @@ module HashDirectiveInfo =
         let getDirectoryOfFile = FileSystem.GetFullPathSafe >> FileSystem.GetDirectoryNameShim
         let makeRootedDirectoryIfNecessary baseDirectory directory =
             if not (FileSystem.IsPathRootedShim directory) then
-                FileSystem.GetFullPathSafe (baseDirectory </> directory)
+                FileSystem.GetFullPathSafe (System.IO.Path.Combine(baseDirectory, directory))
             else
                 directory
 
@@ -98,7 +81,7 @@ module HashDirectiveInfo =
                             else
                                 // I'm not sure if the order is correct, first checking relative to file containing the #load directive
                                 // then checking for undocumented resolution using previously parsed #I directives
-                                let fileRelativeToCurrentFile = baseDirectory </> f
+                                let fileRelativeToCurrentFile = System.IO.Path.Combine(baseDirectory, f)
                                 if FileSystem.SafeExists fileRelativeToCurrentFile then
                                     // this is existing file relative to current file
                                     yield Load ({token = ""; files = [Existing fileRelativeToCurrentFile]}, range)
