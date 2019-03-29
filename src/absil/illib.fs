@@ -1299,6 +1299,12 @@ module Shim =
         /// and '..' portions
         abstract GetFullPathShim: fileName: string -> string
 
+        /// A shim over <see cref="System.IO.Path.GetFileName"/>
+        abstract GetFileNameShim: filename: string -> string
+        
+        /// A shim over <see cref="System.IO.Path.GetDirectoryName"/>
+        abstract GetDirectoryNameShim: path: string -> string
+        
         /// A shim over Path.IsPathRooted
         abstract IsPathRootedShim: path: string -> bool
 
@@ -1313,7 +1319,10 @@ module Shim =
 
         /// A shim over File.Exists
         abstract SafeExists: fileName: string -> bool
-
+        
+        /// A shim over <see cref="System.IO.Directory.Exists"/>
+        abstract DirectoryExistsShim: path: string -> bool
+        
         /// A shim over File.Delete
         abstract FileDelete: fileName: string -> unit
 
@@ -1325,8 +1334,7 @@ module Shim =
 
         /// Used to determine if a file will not be subject to deletion during the lifetime of a typical client process.
         abstract IsStableFileHeuristic: fileName: string -> bool
-
-
+        
     type DefaultFileSystem() =
         interface IFileSystem with
 
@@ -1367,6 +1375,12 @@ module Shim =
 
             member __.GetLastWriteTimeShim (fileName: string) = File.GetLastWriteTimeUtc fileName
 
+            member __.GetDirectoryNameShim (path: string) = Path.GetDirectoryName path 
+            
+            member __.GetFileNameShim (fileName: string) = Path.GetFileName fileName 
+
+            member __.DirectoryExistsShim (path: string) = Directory.Exists path 
+
             member __.SafeExists (fileName: string) = File.Exists fileName 
 
             member __.FileDelete (fileName: string) = File.Delete fileName
@@ -1391,4 +1405,14 @@ module Shim =
             while n < len do 
                 n <- n + stream.Read(buffer, n, len-n)
             buffer
+
+    [<AutoOpen>]
+    module Extensions =
+        type IFileSystem with
+          /// Equivalent to GetFullPathShim in a try catch, returns <see paramref="path"/> in case of an exception.
+          member x.GetFullPathSafe path = try x.GetFullPathShim path with _ -> path
+      
+          /// Equivalent to GetFileNameShim in a try catch, returns <see paramref="path"/> in case of an exception.
+          member x.GetFileNameSafe path = try x.GetFileNameShim path with _ -> path
+
 
