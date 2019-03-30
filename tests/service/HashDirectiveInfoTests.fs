@@ -23,25 +23,31 @@ let getAst filename =
   |> File.ReadAllText
   |> parseSource
 
-let getDirectives filename =
-  filename 
-  |> getAst 
+let getLoadDirectiveForExistingFileNamesOrNone ast =
+  ast
   |> getIncludeAndLoadDirectives
-
-let getLoadDirectiveForExistingFileNamesOrNone filename =
-  filename
-  |> getDirectives
   |> Array.choose (function | Load (loadDirective,range) -> Some (loadDirective,range) | _ -> None)
   |> Array.map (function | (ExistingFile filename,range) -> range, Some (canonicalize filename) | (_, range) -> range, None)
 
 // checks #load resolves the same files, in same order, for the given cursor locations
 let checkRangesAndLoadFilesAreMatching filename expected =
-    let actuals = getLoadDirectiveForExistingFileNamesOrNone filename
+    let ast = getAst filename
+    let results =
+        expected
+        |> Array.map fst
+        |> Array.map (fun pos -> 
+           let result = getHashLoadDirectiveResolvedPathAtPosition pos ast
+           match result with
+           | None      -> pos, None
+           | Some path -> pos, Some (canonicalize path)
+        )
+        |> Seq.toList
+    let actuals = getLoadDirectiveForExistingFileNamesOrNone ast
     Assert.AreEqual (expected, actuals)  
   
 // checks #load resolves the same existing or unresolved files, in same order; it doesn't check the ranges
 let checkLoadFilesAreMatching filename expected =
-    let actuals = getLoadDirectiveForExistingFileNamesOrNone filename |> Array.map snd
+    let actuals = filename |> getAst |> getLoadDirectiveForExistingFileNamesOrNone |> Array.map snd
     let expected = expected |> Array.map (Option.map canonicalize)
     Assert.AreEqual (expected, actuals)  
 
