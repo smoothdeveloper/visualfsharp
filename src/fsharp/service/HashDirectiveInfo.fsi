@@ -6,27 +6,20 @@ module HashDirectiveInfo =
     open FSharp.Compiler.Range
     open FSharp.Compiler.Ast
 
-    /// IncludeDirective (#I) contains the pointed directory
+    /// Include directive (#I)
     type IncludeDirective =
-        | ResolvedDirectory of string
+        | ResolvedDirectory of directory: string
     
-    // todo: make this embed precise location / reuse ast stuff
-    type CodeStringLiteral = string
-
-    type LoadFile =
-        | Existing of CodeStringLiteral 
-        | Unresolvable of CodeStringLiteral
-
-    type LoadToken = CodeStringLiteral
-
-    type LoadDirective = { token: LoadToken ; files : LoadFile list }
+    /// Load directive (#load)
+    type LoadDirective =
+        | ExistingFile of filename: string
+        | UnresolvableFile of filename: string * previousIncludes : string array
         
-    /// represents #I and #load directive information along with range
+    /// Directive information
     [<NoComparison>]
     type Directive =
         | Include of IncludeDirective * range
         | Load of LoadDirective * range
-
 
     /// returns an array of LoadScriptResolutionEntries
     /// based on #I and #load directives

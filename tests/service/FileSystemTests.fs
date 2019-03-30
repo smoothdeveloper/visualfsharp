@@ -61,6 +61,7 @@ let B = File1.A + File1.A"""
         member __.IsPathRootedShim(fileName) = defaultFileSystem.IsPathRootedShim(fileName)
 
         // Implement the service related to file existence and deletion
+        
         member __.SafeExists(fileName) = files.ContainsKey(fileName) || defaultFileSystem.SafeExists(fileName)
         member __.FileDelete(fileName) = defaultFileSystem.FileDelete(fileName)
 
@@ -68,6 +69,11 @@ let B = File1.A + File1.A"""
         // and for F# interactive.
         member __.AssemblyLoadFrom(fileName) = defaultFileSystem.AssemblyLoadFrom fileName
         member __.AssemblyLoad(assemblyName) = defaultFileSystem.AssemblyLoad assemblyName 
+
+        // non implemented members
+        member __.DirectoryExistsShim(dir) = failwithf "not implemented"
+        member __.GetDirectoryNameShim(dir) = failwithf "not implemented"
+        member __.GetFileNameShim(filename) = failwithf "not implemented"
 
 let UseMyFileSystem() = 
     let myFileSystem = MyFileSystem(Shim.FileSystem)
