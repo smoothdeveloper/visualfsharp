@@ -158,7 +158,7 @@ type ContextInfo =
 exception ConstraintSolverTupleDiffLengths              of displayEnv: DisplayEnv * TType list * TType list * range  * range
 exception ConstraintSolverInfiniteTypes                 of displayEnv: DisplayEnv * contextInfo: ContextInfo * TType * TType * range * range
 exception ConstraintSolverTypesNotInEqualityRelation    of displayEnv: DisplayEnv * TType * TType * range * range * ContextInfo
-exception ConstraintSolverTypesNotInSubsumptionRelation of displayEnv: DisplayEnv * TType * TType * range  * range 
+exception ConstraintSolverTypesNotInSubsumptionRelation of displayEnv: DisplayEnv * argT: TType * paramT: TType * range * range
 exception ConstraintSolverMissingConstraint             of displayEnv: DisplayEnv * Tast.Typar * Tast.TyparConstraint * range  * range 
 exception ConstraintSolverError                         of string * range * range
 exception ConstraintSolverRelatedInformation            of string option * range * exn 
@@ -1367,13 +1367,30 @@ and SolveMemberConstraint (csenv: ConstraintSolverEnv) ignoreUnresolvedOverload 
                     // curried members may not be used to satisfy constraints
                     |> List.choose (fun minfo ->
                           if minfo.IsCurried then None else
-                          let callerArgs = argtys |> List.map (fun argty -> CallerArg(argty, m, false, dummyExpr))
+                          let callerArgs = 
+                            { Unnamed = List.singleton (argtys |> List.map (fun argty -> CallerArg(argty, m, false, dummyExpr)))
+                              Named = List.singleton List.empty }
                           let minst = FreshenMethInfo m minfo
                           let objtys = minfo.GetObjArgTypes(amap, m, minst)
-                          Some(CalledMeth<Expr>(csenv.InfoReader, None, false, FreshenMethInfo, m, AccessibleFromEverywhere, minfo, minst, minst, None, objtys, [(callerArgs, [])], false, false, None)))
+                          Some(CalledMeth<Expr>(csenv.InfoReader, None, false, FreshenMethInfo, m, AccessibleFromEverywhere, minfo, minst, minst, None, objtys, callerArgs, false, false, None)))
               
               let methOverloadResult, errors = 
-                  trace.CollectThenUndoOrCommit (fun (a, _) -> Option.isSome a) (fun trace -> ResolveOverloading csenv (WithTrace trace) nm ndeep (Some traitInfo) (0, 0) AccessibleFromEverywhere calledMethGroup false (Some rty))
+                  (fun trace -> 
+                      let permitOptArgs = false
+                      
+                      ResolveOverloading 
+                          csenv 
+                          (WithTrace trace) 
+                          nm 
+                          ndeep 
+                          (Some traitInfo) 
+                          CallerArgs.Empty
+                          AccessibleFromEverywhere 
+                          calledMethGroup 
+                          permitOptArgs
+                          (Some rty)
+                      )
+                  |> trace.CollectThenUndoOrCommit (fun (a, _) -> Option.isSome a) 
 
               match anonRecdPropSearch, recdPropSearch, methOverloadResult with 
               | Some (anonInfo, tinst, i), None, None -> 
@@ -2286,15 +2303,15 @@ and ReportNoCandidatesErrorSynExpr csenv callerArgCounts methodName ad calledMet
 // This is used after analyzing the types of arguments 
 and ResolveOverloading 
          (csenv: ConstraintSolverEnv) 
-         trace           // The undo trace, if any
-         methodName      // The name of the method being called, for error reporting
-         ndeep           // Depth of inference
-         cx              // We're doing overload resolution as part of constraint solving, where special rules apply for op_Explicit and op_Implicit constraints.
-         callerArgCounts // How many named/unnamed args id the caller provide? 
-         ad              // The access domain of the caller, e.g. a module, type etc. 
-         calledMethGroup // The set of methods being called 
-         permitOptArgs   // Can we supply optional arguments?
-         reqdRetTyOpt    // The expected return type, if known 
+         trace            // The undo trace, if any
+         methodName       // The name of the method being called, for error reporting
+         ndeep            // Depth of inference
+         cx               // We're doing overload resolution as part of constraint solving, where special rules apply for op_Explicit and op_Implicit constraints.
+         (callerArgs: CallerArgs<Expr>)
+         ad               // The access domain of the caller, e.g. a module, type etc. 
+         calledMethGroup  // The set of methods being called 
+         permitOptArgs    // Can we supply optional arguments?
+         reqdRetTyOpt     // The expected return type, if known 
      =
     let g = csenv.g
     let amap = csenv.amap
@@ -2313,7 +2330,7 @@ and ResolveOverloading
             None, ErrorD (Error (FSComp.SR.csMethodNotFound(methodName), m)), NoTrace
 
         | _, [] when not isOpConversion -> 
-            None, ReportNoCandidatesErrorExpr csenv callerArgCounts methodName ad calledMethGroup, NoTrace
+            None, ReportNoCandidatesErrorExpr csenv callerArgs.CallerArgCounts methodName ad calledMethGroup, NoTrace
             
         | _, _ -> 
 
@@ -2555,7 +2572,7 @@ and ResolveOverloading
                     let msg = 
                         match methodNames with
                         | [] -> msg
-                        | names -> sprintf "%s %s" msg (sprintf "fooo %s" (String.concat ", " names)) //   FSComp.SR.csCandidates (String.concat ", " names))
+                        | names -> sprintf "%s %s" msg (FSComp.SR.csCandidates (String.concat System.Environment.NewLine names)) //   FSComp.SR.csCandidates (String.concat ", " names))
                     None, ErrorD (failOverloading msg []), NoTrace
 
     // If we've got a candidate solution: make the final checks - no undo here! 
