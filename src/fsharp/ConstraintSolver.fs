@@ -42,6 +42,7 @@ open FSharp.Compiler.ErrorLogger
 open FSharp.Compiler.Infos
 open FSharp.Compiler.AccessibilityLogic
 open FSharp.Compiler.AttributeChecking
+open FSharp.Compiler.Import
 open FSharp.Compiler.Lib
 open FSharp.Compiler.MethodCalls
 open FSharp.Compiler.PrettyNaming
@@ -170,6 +171,22 @@ type ContextInfo =
 
     /// The type equation comes from a sequence expression.
     | SequenceExpression of TType
+
+/// Captures relevant information for a particular failed overload resolution.
+[<Struct>]
+type OverloadInformation = {
+  methodSlot: CalledMeth<Expr>
+  amap : ImportMap
+  error: exn
+}
+with
+    member OverloadMethodInfo : displayEnv: DisplayEnv -> m: range -> string
+
+/// Cases for overload resolution failure that exists in the implementation of the compiler.
+type OverloadResolutionFailure =
+    | NoOverloadsFound   of methodName: string * candidates: OverloadInformation list
+    | PossibleCandidates of methodName: string * methodNames: string list // methodNames may be different (with operators?), this is refactored from original logic to assemble overload failure message
+
 
 exception ConstraintSolverTupleDiffLengths of displayEnv: DisplayEnv * TType list * TType list * range  * range
 
@@ -2424,7 +2441,7 @@ and ResolveOverloading
                                    reqdRetTyOpt 
                                    candidate)
 
-            let failOverloading (msg: string) errors = 
+            let failOverloading overloadResolutionFailure = 
                 // Try to extract information to give better error for ambiguous op_Explicit and op_Implicit 
                 let convOpData = 
                     if isOpConversion then 
@@ -2439,11 +2456,26 @@ and ResolveOverloading
                 | Some (fromTy, toTy) -> 
                     UnresolvedConversionOperator (denv, fromTy, toTy, m)
                 | None -> 
-                    // Otherwise collect a list of possible overloads
-                    let overloads = GetPossibleOverloads amap m denv errors
+                    let msg = 
+                        match overloadResolutionFailure with
+                        | NoOverloadsFound (methodName, _) -> FSComp.SR.csNoOverloadsFound methodName
+                        | PossibleCandidates (methodName, methodNames) ->
+                            let msg = FSComp.SR.csMethodIsOverloaded methodName
+                            match methodNames with
+                            | [] -> msg
+                            | names -> sprintf "%s %s" msg (FSComp.SR.csCandidates (String.concat ", " names))                        
+
+                    let overloads =
+                        overloadResolutionFailure
+                        |> function | NoOverloadsFound (_, candidates) -> candidates
+                                    | PossibleCandidates _ -> []
+                        |> List.map (fun overload -> 
+                            PossibleOverload(denv, overload, m)  :?> _ // F# Spec: 8.11 Exception Definitions: The identifier identcan be used to generate values of type exn
+                        )
+                    
                     // if list of overloads is not empty - append line with "The available overloads are shown below..."
                     let msg = if isNil overloads then msg else sprintf "%s %s" msg (FSComp.SR.csSeeAvailableOverloads ())
-                    UnresolvedOverloading (denv, overloads, msg, m)
+                    UnresolvedOverloading (denv, msg, overloads, m)
 
             match applicable with 
             | [] ->
@@ -2463,9 +2495,9 @@ and ResolveOverloading
                                              reqdRetTyOpt 
                                              calledMeth) with 
                             | OkResult _ -> None
-                            | ErrorResult(_, exn) -> Some (calledMeth, exn))
+                            | ErrorResult(_, exn) -> Some {methodSlot = calledMeth; amap = amap; error = exn })
 
-                None, ErrorD (failOverloading (FSComp.SR.csNoOverloadsFound methodName) errors), NoTrace
+                None, ErrorD (failOverloading (NoOverloadsFound (methodName, errors))), NoTrace
 
             | [(calledMeth, warns, t)] ->
                 Some calledMeth, OkResult (warns, ()), WithTrace t
@@ -2620,12 +2652,8 @@ and ResolveOverloading
                         methods
                         |> List.map (fun cmeth -> NicePrint.stringOfMethInfo amap m denv cmeth.Method)
                         |> List.sort
-                    let msg = FSComp.SR.csMethodIsOverloaded methodName
-                    let msg = 
-                        match methodNames with
-                        | [] -> msg
-                        | names -> sprintf "%s %s" msg (FSComp.SR.csCandidates (String.concat System.Environment.NewLine names)) //   FSComp.SR.csCandidates (String.concat ", " names))
-                    None, ErrorD (failOverloading msg []), NoTrace
+                    
+                    None, ErrorD (failOverloading (PossibleCandidates(methodName, methodNames))), NoTrace
 
     // If we've got a candidate solution: make the final checks - no undo here! 
     // Allow subsumption on arguments. Include the return type.
