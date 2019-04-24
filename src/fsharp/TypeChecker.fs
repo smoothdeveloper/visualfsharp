@@ -8,6 +8,7 @@ open System
 open System.Collections.Generic
 
 open Internal.Utilities
+open Internal.Utilities.StructuredFormat
 
 open FSharp.Compiler.AbstractIL 
 open FSharp.Compiler.AbstractIL.IL 
@@ -9818,7 +9819,7 @@ and TcMethodApplication
 
         let callerArgCounts = (List.sumBy List.length unnamedCurriedCallerArgs, List.sumBy List.length namedCurriedCallerArgs)
 
-        let callerArgs = List.zip unnamedCurriedCallerArgs namedCurriedCallerArgs
+        let callerArgs = { Unnamed = unnamedCurriedCallerArgs; Named = namedCurriedCallerArgs }
 
         let makeOneCalledMeth (minfo, pinfoOpt, usesParamArrayConversion) = 
             let minst = FreshenMethInfo mItem minfo
@@ -9916,10 +9917,26 @@ and TcMethodApplication
     
     // STEP 3. Resolve overloading 
     /// Select the called method that's the result of overload resolution
-    let finalCalledMeth = 
+    let finalCalledMeth =
+        let formatOptions = FormatOptions.Default
+        let getArgType =
+            function | (Some argName), typeLayout -> sprintf "(%s) : %s" argName (Display.layout_to_string formatOptions typeLayout)
+                     | _, typeLayout -> (Display.layout_to_string typeLayout)
 
-        let callerArgs = List.zip unnamedCurriedCallerArgs namedCurriedCallerArgs
-
+        let callerArgs = { Unnamed = unnamedCurriedCallerArgs ; Named = namedCurriedCallerArgs }
+        let argsMessage =
+            match callerArgs.LayoutArgumentTypes denv with
+            | [] -> String.Empty
+            | [item] -> item |> getArgType |> FSComp.SR.csNoOverloadsFoundArgumentsPrefixSingular
+            | items -> 
+                let args = 
+                    items 
+                    |> List.map (getArgType >> FSComp.SR.csNoOverloadsFoundArgumentsSingleArgumentInstance)
+                    |> List.toArray
+                    |> String.concat Environment.NewLine
+                (FSComp.SR.csNoOverloadsFoundArgumentsPrefixPlural()) + args
+          
+        printfn "%A" argsMessage
         let postArgumentTypeCheckingCalledMethGroup = 
             preArgumentTypeCheckingCalledMethGroup |> List.map (fun (minfo: MethInfo, minst, pinfoOpt, usesParamArrayConversion) ->
                 let callerTyArgs = 
@@ -9928,7 +9945,6 @@ and TcMethodApplication
                     | None -> minst
                 CalledMeth<Expr>(cenv.infoReader, Some(env.NameEnv), isCheckingAttributeCall, FreshenMethInfo, mMethExpr, ad, minfo, minst, callerTyArgs, pinfoOpt, callerObjArgTys, callerArgs, usesParamArrayConversion, true, objTyOpt))
           
-        let callerArgCounts = (unnamedCurriedCallerArgs.Length, namedCurriedCallerArgs.Length)
         let csenv = MakeConstraintSolverEnv ContextInfo.NoContext cenv.css mMethExpr denv
         
         // Commit unassociated constraints prior to member overload resolution where there is ambiguity 
@@ -9939,7 +9955,7 @@ and TcMethodApplication
                   (unnamedCurriedCallerArgs |> List.collectSquared (fun callerArg -> freeInTypeLeftToRight cenv.g false callerArg.Type)))
 
         let result, errors = 
-            ResolveOverloading csenv NoTrace methodName 0 None callerArgCounts ad postArgumentTypeCheckingCalledMethGroup true (Some returnTy) 
+            ResolveOverloading csenv NoTrace methodName 0 None callerArgs ad postArgumentTypeCheckingCalledMethGroup true (Some returnTy) 
 
         match afterResolution, result with
         | AfterResolution.DoNothing, _ -> ()
