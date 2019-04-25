@@ -363,7 +363,6 @@ csCtorHasNoArgumentOrReturnProperty,"The object constructor '%s' has no argument
 csNoOverloadsFound,"No overloads match for method '%s'."
 csNoOverloadsFoundArgumentsPrefixSingular,"Argument given: %s"
 csNoOverloadsFoundArgumentsPrefixPlural,"Arguments given:"
-csNoOverloadsFoundArgumentsSingleArgumentInstance," - %s"
 csMethodIsOverloaded,"A unique overload for method '%s' could not be determined based on type information prior to this program point. A type annotation may be needed."
 csCandidates,"Candidates: %s"
 csSeeAvailableOverloads,"The available overloads are shown below."
@@ -1465,3 +1464,4 @@ notAFunctionButMaybeDeclaration,"This value is not a function and cannot be appl
 3300,chkInvalidFunctionParameterType,"The parameter '%s' has an invalid type '%s'. This is not permitted by the rules of Common IL."
 3301,chkInvalidFunctionReturnType,"The function or method has an invalid return type '%s'. This is not permitted by the rules of Common IL."
 useSdkRefs,"Use reference assemblies for .NET framework references when available (Enabled by default)."
+formatDashItem," - %s"
