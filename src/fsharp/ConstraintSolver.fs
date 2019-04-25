@@ -33,6 +33,7 @@
 module internal FSharp.Compiler.ConstraintSolver
 
 open Internal.Utilities.Collections
+open Internal.Utilities.StructuredFormat
 
 open FSharp.Compiler 
 open FSharp.Compiler.AbstractIL 
@@ -2457,8 +2458,34 @@ and ResolveOverloading
                     UnresolvedConversionOperator (denv, fromTy, toTy, m)
                 | None -> 
                     let msg = 
+                        let formatOptions = FormatOptions.Default
+                        let getArgType =
+                            function | (Some argName), typeLayout -> sprintf "(%s) : %s" argName (Display.layout_to_string formatOptions typeLayout)
+                                     | _, typeLayout -> (Display.layout_to_string formatOptions typeLayout)
+
+                        let argsMessage =
+                            match callerArgs.LayoutArgumentTypes denv with
+                            | [] -> System.String.Empty
+                            | [item] -> Environment.NewLine + (item |> getArgType |> FSComp.SR.csNoOverloadsFoundArgumentsPrefixSingular)
+                            | items -> 
+                                let args = 
+                                    items 
+                                    |> List.map (getArgType >> FSComp.SR.formatDashItem)
+                                    |> List.toArray
+                                    |> String.concat Environment.NewLine
+
+                                Environment.NewLine 
+                                + Environment.NewLine 
+                                + (FSComp.SR.csNoOverloadsFoundArgumentsPrefixPlural()) 
+                                + Environment.NewLine 
+                                + args
+                                + Environment.NewLine 
+                                + Environment.NewLine 
+
+  
+                        //printfn "%A" argsMessage
                         match overloadResolutionFailure with
-                        | NoOverloadsFound (methodName, _) -> FSComp.SR.csNoOverloadsFound methodName
+                        | NoOverloadsFound (methodName, _) -> FSComp.SR.csNoOverloadsFound methodName + argsMessage
                         | PossibleCandidates (methodName, methodNames) ->
                             let msg = FSComp.SR.csMethodIsOverloaded methodName
                             match methodNames with
@@ -2469,7 +2496,7 @@ and ResolveOverloading
                               |> List.sort
                               |> String.concat ", "
                               |> FSComp.SR.csCandidates
-                              |> sprintf "%s %s" msg
+                              |> sprintf "%s %s %s" argsMessage msg
 
                     let overloads =
                         overloadResolutionFailure
