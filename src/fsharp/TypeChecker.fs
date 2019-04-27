@@ -10253,7 +10253,7 @@ and TcMethodApplication
             // to their default values (for optionals) and be part of the return tuple (for out args). 
             | None, [calledMeth] -> 
                 let curriedArgTys, returnTy = UnifyMatchingSimpleArgumentTypes exprTy calledMeth
-                let unnamedCurriedCallerArgs = curriedArgTys |> List.mapSquared (fun ty -> CallerArg(ty, mMethExpr, false, dummyExpr))  
+                let unnamedCurriedCallerArgs = curriedArgTys |> List.mapSquared (fun ty -> CallerArg.make(ty, mMethExpr, false, dummyExpr))  
                 let namedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.map (fun _ -> [])
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, returnTy
                 
@@ -10271,13 +10271,13 @@ and TcMethodApplication
                        argTys
                     else 
                        [domainTy]
-                let unnamedCurriedCallerArgs = [argTys |> List.map (fun ty -> CallerArg(ty, mMethExpr, false, dummyExpr)) ]
+                let unnamedCurriedCallerArgs = [argTys |> List.map (fun ty -> CallerArg.make(ty, mMethExpr, false, dummyExpr)) ]
                 let namedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.map (fun _ -> [])
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, returnTy
 
             | Some (unnamedCurriedCallerArgs, namedCurriedCallerArgs), _ -> 
-                let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg(argTy, mArg, false, argExpr))
-                let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg(argTy, mArg, isOpt, argExpr))) 
+                let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg.make(argTy, mArg, false, argExpr))
+                let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg.make(argTy, mArg, isOpt, argExpr))) 
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, exprTy
 
         let callerArgCounts = (List.sumBy List.length unnamedCurriedCallerArgs, List.sumBy List.length namedCurriedCallerArgs)
@@ -10335,7 +10335,7 @@ and TcMethodApplication
                     [argTys], returnTy
                          
             let lambdaVarsAndExprs = curriedArgTys |> List.mapiSquared (fun i j ty -> mkCompGenLocal mMethExpr ("arg"+string i+string j) ty)
-            let unnamedCurriedCallerArgs = lambdaVarsAndExprs |> List.mapSquared (fun (_, e) -> CallerArg(tyOfExpr cenv.g e, e.Range, false, e))
+            let unnamedCurriedCallerArgs = lambdaVarsAndExprs |> List.mapSquared (fun (_, e) -> CallerArg.make(tyOfExpr cenv.g e, e.Range, false, e))
             let namedCurriedCallerArgs = lambdaVarsAndExprs |> List.map (fun _ -> [])
             let lambdaVars = List.mapSquared fst lambdaVarsAndExprs
             unnamedCurriedCallerArgs, namedCurriedCallerArgs, Some lambdaVars, returnTy, tpenv
@@ -10343,8 +10343,8 @@ and TcMethodApplication
         | Some (unnamedCurriedCallerArgs, namedCurriedCallerArgs) ->
             // This is the case where some explicit arguments have been given.
 
-            let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg(argTy, mArg, false, argExpr)) 
-            let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg(argTy, mArg, isOpt, argExpr))) 
+            let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg.make(argTy, mArg, false, argExpr)) 
+            let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg.make(argTy, mArg, isOpt, argExpr))) 
 
             // Collect the information for F# 3.1 lambda propagation rule, and apply the caller's object type to the method's object type if the rule is relevant.
             let lambdaPropagationInfo = 
@@ -10585,7 +10585,7 @@ and TcMethodApplication
     
     (callExpr6, finalAttributeAssignedNamedItems, delayed), tpenv
             
-and TcSetterArgExpr cenv env denv objExpr ad (AssignedItemSetter(id, setter, CallerArg(callerArgTy, m, isOptCallerArg, argExpr))) =
+and TcSetterArgExpr cenv env denv objExpr ad (AssignedItemSetter(id, setter, { Type = callerArgTy; Range = m; IsOptional = isOptCallerArg; Expr = argExpr })) =
     if isOptCallerArg then error(Error(FSComp.SR.tcInvalidOptionalAssignmentToPropertyOrField(), m))
                     
     let argExprPrebinder, action, defnItem = 
@@ -10623,12 +10623,12 @@ and TcSetterArgExpr cenv env denv objExpr ad (AssignedItemSetter(id, setter, Cal
 and TcUnnamedMethodArgs cenv env lambdaPropagationInfo tpenv args =  
     List.mapiFoldSquared (TcUnnamedMethodArg cenv env) (lambdaPropagationInfo, tpenv) args 
 
-and TcUnnamedMethodArg cenv env (lambdaPropagationInfo, tpenv) (i, j, CallerArg(argTy, mArg, isOpt, argExpr)) = 
+and TcUnnamedMethodArg cenv env (lambdaPropagationInfo, tpenv) (i, j, callerArg) = 
     // Try to find the lambda propagation info for the corresponding unnamed argument at this position
     let lambdaPropagationInfoForArg = 
         [| for (unnamedInfo, _) in lambdaPropagationInfo -> 
              if i < unnamedInfo.Length && j < unnamedInfo.[i].Length then unnamedInfo.[i].[j] else NoInfo |] 
-    TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, CallerArg(argTy, mArg, isOpt, argExpr))
+    TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, callerArg)
 
 and TcMethodNamedArgs cenv env lambdaPropagationInfo tpenv args =  
     List.mapFoldSquared (TcMethodNamedArg cenv env) (lambdaPropagationInfo, tpenv) args
@@ -10645,8 +10645,11 @@ and TcMethodNamedArg cenv env (lambdaPropagationInfo, tpenv) (CallerNamedArg(id,
     let arg', (lambdaPropagationInfo, tpenv) = TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, arg)
     CallerNamedArg(id, arg'), (lambdaPropagationInfo, tpenv)
 
-and TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, CallerArg(argTy, mArg, isOpt, argExpr)) = 
-
+and TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, callerArg) = 
+    let argTy = callerArg.Type
+    let mArg = callerArg.Range
+    let isOpt = callerArg.IsOptional
+    let argExpr = callerArg.Expr
     // Apply the F# 3.1 rule for extracting information for lambdas
     //
     // Before we check the argument, check to see if we can propagate info from a called lambda expression into the arguments of a received lambda
@@ -10698,7 +10701,7 @@ and TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoFo
                   if AddCxTypeMustSubsumeTypeMatchingOnlyUndoIfFailed env.DisplayEnv cenv.css mArg adjustedCalledTy argTy then
                      yield info |]
 
-    CallerArg(argTy, mArg, isOpt, e'), (lambdaPropagationInfo, tpenv)
+    CallerArg.make(argTy, mArg, isOpt, e'), (lambdaPropagationInfo, tpenv)
 
 /// Typecheck "new Delegate(fun x y z -> ...)" constructs
 and TcNewDelegateThen cenv overallTy env tpenv mDelTy mExprAndArg delegateTy arg atomicFlag delayed =
@@ -10711,7 +10714,7 @@ and TcNewDelegateThen cenv overallTy env tpenv mDelTy mExprAndArg delegateTy arg
     match args with 
     | [farg], [] -> 
         let m = arg.Range
-        let callerArg, (_, tpenv) = TcMethodArg cenv env (Array.empty, tpenv) (Array.empty, CallerArg(fty, m, false, farg))
+        let callerArg, (_, tpenv) = TcMethodArg cenv env (Array.empty, tpenv) (Array.empty, CallerArg.make(fty, m, false, farg))
         let expr = BuildNewDelegateExpr (None, cenv.g, cenv.amap, delegateTy, invokeMethInfo, delArgTys, callerArg.Expr, fty, m)
         PropagateThenTcDelayed cenv overallTy env tpenv m (MakeApplicableExprNoFlex cenv expr) delegateTy atomicFlag delayed  
     | _ ->  
@@ -11264,7 +11267,11 @@ and TcAttribute canFail cenv (env: TcEnv) attrTgt (synAttr: SynAttribute) =
                     AttribExpr(e, EvalLiteralExprOrAttribArg cenv.g e)
 
                 let namedAttribArgMap = 
-                  attributeAssignedNamedItems |> List.map (fun (CallerNamedArg(id, CallerArg(argtyv, m, isOpt, callerArgExpr))) ->
+                  attributeAssignedNamedItems |> List.map (fun (CallerNamedArg(id, callerArg)) ->
+                    let argtyv = callerArg.Type
+                    let m = callerArg.Range
+                    let isOpt = callerArg.IsOptional
+                    let callerArgExpr = callerArg.Expr
                     if isOpt then error(Error(FSComp.SR.tcOptionalArgumentsCannotBeUsedInCustomAttribute(), m))
                     let m = callerArgExpr.Range
                     let setterItem, _ = ResolveLongIdentInType cenv.tcSink cenv.nameResolver env.NameEnv LookupKind.Expr m ad id IgnoreOverrides TypeNameResolutionInfo.Default ty
