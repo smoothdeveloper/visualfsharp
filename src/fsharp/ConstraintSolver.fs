@@ -1439,7 +1439,7 @@ and SolveMemberConstraint (csenv: ConstraintSolverEnv) ignoreUnresolvedOverload 
                     |> List.choose (fun minfo ->
                           if minfo.IsCurried then None else
                           let callerArgs = 
-                            { Unnamed = List.singleton (argtys |> List.map (fun argty -> CallerArg(argty, m, false, dummyExpr)))
+                            { Unnamed = List.singleton (argtys |> List.map (fun argty -> CallerArg.make(argty, m, false, dummyExpr)))
                               Named = List.singleton List.empty }
                           let minst = FreshenMethInfo m minfo
                           let objtys = minfo.GetObjArgTypes(amap, m, minst)
@@ -2237,16 +2237,16 @@ and MustUnify csenv ndeep trace cxsln ty1 ty2 =
 and MustUnifyInsideUndo csenv ndeep trace cxsln ty1 ty2 = 
     SolveTypeEqualsTypeWithReport csenv ndeep csenv.m (WithTrace trace) cxsln ty1 ty2
 
-and ArgsMustSubsumeOrConvertInsideUndo (csenv: ConstraintSolverEnv) ndeep trace cxsln isConstraint calledArg (CallerArg(callerArgTy, m, _, _) as callerArg) = 
+and ArgsMustSubsumeOrConvertInsideUndo (csenv: ConstraintSolverEnv) ndeep trace cxsln isConstraint calledArg callerArg = 
     let calledArgTy = AdjustCalledArgType csenv.InfoReader isConstraint calledArg callerArg
-    SolveTypeSubsumesTypeWithReport csenv ndeep  m (WithTrace trace) cxsln calledArgTy callerArgTy 
+    SolveTypeSubsumesTypeWithReport csenv ndeep callerArg.Range (WithTrace trace) cxsln calledArgTy callerArg.Type 
 
 and TypesMustSubsumeOrConvertInsideUndo (csenv: ConstraintSolverEnv) ndeep trace cxsln m calledArgTy callerArgTy = 
     SolveTypeSubsumesTypeWithReport csenv ndeep m trace cxsln calledArgTy callerArgTy 
 
-and ArgsEquivInsideUndo (csenv: ConstraintSolverEnv) isConstraint calledArg (CallerArg(callerArgTy, m, _, _) as callerArg) = 
+and ArgsEquivInsideUndo (csenv: ConstraintSolverEnv) isConstraint calledArg callerArg = 
     let calledArgTy = AdjustCalledArgType csenv.InfoReader isConstraint calledArg callerArg
-    if typeEquiv csenv.g calledArgTy callerArgTy then CompleteD else ErrorD(Error(FSComp.SR.csArgumentTypesDoNotMatch(), m))
+    if typeEquiv csenv.g calledArgTy callerArg.Type then CompleteD else ErrorD(Error(FSComp.SR.csArgumentTypesDoNotMatch(), callerArg.Range))
 
 and ReportNoCandidatesError (csenv: ConstraintSolverEnv) (nUnnamedCallerArgs, nNamedCallerArgs) methodName ad (calledMethGroup: CalledMeth<_> list) isSequential =
 
@@ -2457,21 +2457,21 @@ and ResolveOverloading
                 | Some (fromTy, toTy) -> 
                     UnresolvedConversionOperator (denv, fromTy, toTy, m)
                 | None -> 
-                    let msg = 
-                        let formatOptions = FormatOptions.Default
-                        let getArgType =
-                            function | (Some argName), typeLayout -> sprintf "(%s) : %s" argName (Display.layout_to_string formatOptions typeLayout)
-                                     | _, typeLayout -> (Display.layout_to_string formatOptions typeLayout)
-
+                    let msg =
+                        let displayArgType (name , ttype) =
+                            let typeDisplay = NicePrint.prettyStringOfTy denv ttype
+                            match name with
+                            | Some name -> sprintf "(%s) : %s" name typeDisplay
+                            | None -> sprintf "%s" typeDisplay
                         let nl = System.Environment.NewLine
                         let argsMessage =
-                            match callerArgs.LayoutArgumentTypes denv with
+                            match callerArgs.ArgumentNamesAndTypes with
                             | [] -> System.String.Empty
-                            | [item] -> nl + (item |> getArgType |> FSComp.SR.csNoOverloadsFoundArgumentsPrefixSingular)
+                            | [item] -> nl + nl + (item |> displayArgType |> FSComp.SR.csNoOverloadsFoundArgumentsPrefixSingular)
                             | items -> 
                                 let args = 
                                     items 
-                                    |> List.map (getArgType >> FSComp.SR.formatDashItem)
+                                    |> List.map (displayArgType >> FSComp.SR.formatDashItem) // consider if --flaterrors is on, we may like commas better in this case
                                     |> List.toArray
                                     |> String.concat nl
 
@@ -2503,7 +2503,6 @@ and ResolveOverloading
                                     
 
                                 msg 
-                                + nl
                                 + argsMessage  
                                 + nl
                                 + nl
