@@ -2536,7 +2536,6 @@ and ResolveOverloading
                     UnresolvedConversionOperator (denv, fromTy, toTy, m)
                 | None -> 
                     // Otherwise collect a list of possible overloads
-                    let nl = System.Environment.NewLine
                     let msg =
                         let displayArgType (name , ttype) =
                             let typeDisplay = NicePrint.prettyStringOfTy denv ttype
