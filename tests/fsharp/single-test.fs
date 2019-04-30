@@ -361,8 +361,9 @@ let singleTestBuildAndRun dir p =
     singleTestBuildAndRunAux cfg p
 
 
-let singleNegTest (cfg: TestConfig) testname = 
 
+let singleNegTest (cfg: TestConfig) (testname: string) = 
+#if !FSHARP_SUITE_DRIVES_CORECLR_TESTS
     let cfg = { cfg with fsc_flags = sprintf "%s --define:NEGATIVE" cfg.fsc_flags }
 
     // REM == Set baseline (fsc vs vs, in case the vs baseline exists)
@@ -426,3 +427,9 @@ let singleNegTest (cfg: TestConfig) testname =
         log "***** %s.err %s.bsl differed: a bug or baseline may need updating" testname testname 
         log "***** %s.vserr %s differed: a bug or baseline may need updating" testname VSBSLFILE
         failwithf "%s.err %s.bsl differ; %A; %s.vserr %s differ; %A" testname testname l1 testname VSBSLFILE l2
+
+#else
+  cfg |> ignore
+  testname |> ignore
+  assert false // up for grabs: target netcore
+#endif 
