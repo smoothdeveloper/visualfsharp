@@ -33,7 +33,6 @@
 module internal FSharp.Compiler.ConstraintSolver
 
 open Internal.Utilities.Collections
-open Internal.Utilities.StructuredFormat
 
 open FSharp.Compiler 
 open FSharp.Compiler.AbstractIL 
