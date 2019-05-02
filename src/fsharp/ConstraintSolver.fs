@@ -33,7 +33,6 @@
 module internal FSharp.Compiler.ConstraintSolver
 
 open Internal.Utilities.Collections
-open Internal.Utilities.StructuredFormat
 
 open FSharp.Compiler 
 open FSharp.Compiler.AbstractIL 
@@ -184,7 +183,6 @@ exception ErrorFromApplyingDefault              of tcGlobals: TcGlobals * displa
 exception ErrorFromAddingTypeEquation           of tcGlobals: TcGlobals * displayEnv: DisplayEnv * actual: TType * expected: TType * exn * range
 exception ErrorsFromAddingSubsumptionConstraint of tcGlobals: TcGlobals * displayEnv: DisplayEnv * TType * TType * exn * ContextInfo * range
 exception ErrorFromAddingConstraint             of displayEnv: DisplayEnv * exn * range
-exception PossibleOverload                      of displayEnv: DisplayEnv * overload: OverloadInformation * range
 exception UnresolvedOverloading                 of displayEnv: DisplayEnv * callerArgs: CallerArgs<Expr> * failure: OverloadResolutionFailure * range
 exception UnresolvedConversionOperator          of displayEnv: DisplayEnv * TType * TType * range
 
