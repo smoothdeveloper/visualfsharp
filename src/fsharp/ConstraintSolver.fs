@@ -216,7 +216,7 @@ exception ErrorFromAddingTypeEquation of tcGlobals: TcGlobals * displayEnv: Disp
 exception ErrorsFromAddingSubsumptionConstraint of tcGlobals: TcGlobals * displayEnv: DisplayEnv * TType * TType * exn * ContextInfo * range
 exception ErrorFromAddingConstraint             of displayEnv: DisplayEnv * exn * range
 exception PossibleOverload                      of displayEnv: DisplayEnv * overload: OverloadInformation * range
-exception UnresolvedOverloading                 of displayEnv: DisplayEnv * prefixMessage: string * overloads: PossibleOverload list * range
+exception UnresolvedOverloading                 of displayEnv: DisplayEnv * callerArgs: CallerArgs<Expr> * failure: OverloadResolutionFailure * range
 exception UnresolvedConversionOperator          of displayEnv: DisplayEnv * TType * TType * range
 
 type TcValF = (ValRef -> ValUseFlag -> TType list -> range -> Expr * TType)
@@ -2535,70 +2535,8 @@ and ResolveOverloading
                 | Some (fromTy, toTy) -> 
                     UnresolvedConversionOperator (denv, fromTy, toTy, m)
                 | None -> 
-                    // Otherwise collect a list of possible overloads
-                    let msg =
-                        let displayArgType (name , ttype) =
-                            let typeDisplay = NicePrint.prettyStringOfTy denv ttype
-                            match name with
-                            | Some name -> sprintf "(%s) : %s" name typeDisplay
-                            | None -> sprintf "%s" typeDisplay
-                        let nl = System.Environment.NewLine
-                        let argsMessage =
-                            match callerArgs.ArgumentNamesAndTypes with
-                            | [] -> System.String.Empty
-                            | [item] -> nl + nl + (item |> displayArgType |> FSComp.SR.csNoOverloadsFoundArgumentsPrefixSingular)
-                            | items -> 
-                                let args = 
-                                    items 
-                                    |> List.map (displayArgType >> FSComp.SR.formatDashItem) // consider if --flaterrors is on, we may like commas better in this case
-                                    |> List.toArray
-                                    |> String.concat nl
-
-                                nl + nl
-                                + (FSComp.SR.csNoOverloadsFoundArgumentsPrefixPlural()) 
-                                + nl
-                                + args
-                                + nl + nl
-
-  
-                        //printfn "%A" argsMessage
-                        match overloadResolutionFailure with
-                        | NoOverloadsFound (methodName, _) -> FSComp.SR.csNoOverloadsFound methodName + argsMessage
-                        | PossibleCandidates (methodName, methodNames) ->
-                            let msg = FSComp.SR.csMethodIsOverloaded methodName
-                            match methodNames with
-                            | [] -> msg
-                            | names -> 
-                                let overloads =
-
-                                    FSComp.SR.csCandidates ()
-                                    + nl +
-                                    (
-                                    names 
-                                    |> List.map (fun overload -> NicePrint.stringOfMethInfo amap m denv overload.methodSlot.Method)
-                                    |> List.sort
-                                    |> List.map FSComp.SR.formatDashItem
-                                    |> String.concat nl)
-                                    
-
-                                msg 
-                                + argsMessage  
-                                + nl
-                                + nl
-                                + overloads
-                                
-
-                    let overloads =
-                        overloadResolutionFailure
-                        |> function | NoOverloadsFound (_, candidates) -> candidates
-                                    | PossibleCandidates _ -> []
-                        |> List.map (fun overload -> 
-                            PossibleOverload(denv, overload, m)  :?> _ // F# Spec: 8.11 Exception Definitions: The identifier identcan be used to generate values of type exn
-                        )
-                    
-                    // if list of overloads is not empty - append line with "The available overloads are shown below..."
-                    let msg = if isNil overloads then msg else sprintf "%s %s" msg (FSComp.SR.csSeeAvailableOverloads ())
-                    UnresolvedOverloading (denv, msg, overloads, m)
+                    // Otherwise pass the overload resolution failure for error printing in CompileOps
+                    UnresolvedOverloading (denv, callerArgs, overloadResolutionFailure, m)
 
             match applicable with 
             | [] ->
