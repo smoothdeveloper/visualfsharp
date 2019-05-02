@@ -208,8 +208,7 @@ Argument given: float
 
 Available overloads:
  - new : bool -> X
- - new : int -> X
-""" 
+ - new : int -> X""" 
             ]
 
         CheckErrorList content (assertExpectedErrorMessages expectedMessages)
@@ -298,8 +297,7 @@ Candidates:
  - System.Console.WriteLine(buffer: char []) : unit
  - System.Console.WriteLine(format: string, [<System.ParamArray>] arg: obj []) : unit
  - System.Console.WriteLine(value: obj) : unit
- - System.Console.WriteLine(value: string) : unit
-"""
+ - System.Console.WriteLine(value: string) : unit"""
         ]
         CheckErrorList content (assertExpectedErrorMessages expectedMessages)
 
@@ -324,8 +322,7 @@ Arguments given:
 
 Candidates:
  - member A.Do : a:int * b:'T -> unit
- - member A.Do : a:int * b:int -> unit
-"""        
+ - member A.Do : a:int * b:int -> unit"""        
         ]
         CheckErrorList content (assertExpectedErrorMessages expectedMessages)
 
