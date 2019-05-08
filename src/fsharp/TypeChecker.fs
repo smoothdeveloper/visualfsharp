@@ -10059,14 +10059,16 @@ and TcMethodApplication
             emptyPreBinder, objArgs
 
     // Handle adhoc argument conversions
-    let coerceExpr isOutArg calledArgTy (reflArgInfo: ReflectedArgInfo) (callerArg: CallerArg<_>) = 
+    let coerceExpr calledArgTy (reflArgInfo: ReflectedArgInfo) (callerArg: CallerArg<_>) =
     
        let g = cenv.g
        let m = callerArg.Range
        let callerArgTy = callerArg.Type
-       
        let callerArgExpr = callerArg.Expr
-       
+
+       // this used to be a parameter to this function, probably misnamed
+       let isOutArg = callerArg.IsOptional
+
        if isByrefTy g calledArgTy && isRefCellTy g callerArgTy then 
            None, Expr.Op (TOp.RefAddrGet false, [destRefCellTy g callerArgTy], [callerArg.Expr], m) 
 
@@ -10101,9 +10103,6 @@ and TcMethodApplication
        else 
            None, mkCoerceIfNeeded cenv.g calledArgTy callerArgTy callerArgExpr
 
-    let coerceCallerExpr calledArgTy (reflArgInfo: ReflectedArgInfo) (callerArg: CallerArg<_>) = 
-        coerceExpr callerArg.IsOptional calledArgTy reflArgInfo callerArg
-
     // Handle param array and optional arguments
     let optArgPreBinder, paramArrayPreBinders, allArgs, outArgExprs, outArgTmpBinds = 
 
@@ -10119,7 +10118,7 @@ and TcMethodApplication
 
                 let paramArrayPreBinders, es = 
                     finalParamArrayCallerArgs  
-                    |> List.map (fun callerArg -> coerceCallerExpr paramArrayCalledArgElementType paramArrayCalledArg.ReflArgInfo callerArg)
+                    |> List.map (fun callerArg -> coerceExpr paramArrayCalledArgElementType paramArrayCalledArg.ReflArgInfo callerArg)
                     |> List.unzip
 
                 let arg = 
@@ -10296,11 +10295,10 @@ and TcMethodApplication
         optArgPreBinder, paramArrayPreBinders, allArgs, outArgExprs, outArgTmpBinds
 
     let coerce (assignedArg: AssignedCalledArg<_>) = 
-        let isOutArg = assignedArg.CalledArg.IsOutArg
         let reflArgInfo = assignedArg.CalledArg.ReflArgInfo
         let calledArgTy = assignedArg.CalledArg.CalledArgumentType
     
-        coerceExpr isOutArg calledArgTy reflArgInfo assignedArg.CallerArg
+        coerceExpr calledArgTy reflArgInfo assignedArg.CallerArg
 
     // Record the resolution of the named argument for the Language Service
     allArgs |> List.iter (fun assignedArg ->
@@ -10357,7 +10355,7 @@ and TcMethodApplication
                         | AssignedPropSetter (pinfo, pminfo, pminst) -> 
                             MethInfoChecks cenv.g cenv.amap true None [objExpr] ad m pminfo
                             let calledArgTy = List.head (List.head (pminfo.GetParamTypes(cenv.amap, m, pminst)))
-                            let argExprPrebinder, argExpr = coerceExpr false calledArgTy ReflectedArgInfo.None callerArg
+                            let argExprPrebinder, argExpr = coerceExpr calledArgTy ReflectedArgInfo.None callerArg
                             let mut = (if isStructTy cenv.g (tyOfExpr cenv.g objExpr) then DefinitelyMutates else PossiblyMutates)
                             let action = BuildPossiblyConditionalMethodCall cenv env mut m true pminfo NormalValUse pminst [objExpr] [argExpr] |> fst 
                             argExprPrebinder, action, Item.Property (pinfo.PropertyName, [pinfo])
@@ -10366,7 +10364,7 @@ and TcMethodApplication
                             // Get or set instance IL field 
                             ILFieldInstanceChecks cenv.g cenv.amap ad m finfo
                             let calledArgTy = finfo.FieldType (cenv.amap, m)
-                            let argExprPrebinder, argExpr = coerceExpr false calledArgTy ReflectedArgInfo.None callerArg
+                            let argExprPrebinder, argExpr = coerceExpr calledArgTy ReflectedArgInfo.None callerArg
                             let action = BuildILFieldSet cenv.g m objExpr finfo argExpr 
                             argExprPrebinder, action, Item.ILField finfo
                         
@@ -10374,7 +10372,7 @@ and TcMethodApplication
                             RecdFieldInstanceChecks cenv.g cenv.amap ad m rfinfo 
                             let calledArgTy = rfinfo.FieldType
                             CheckRecdFieldMutation m denv rfinfo
-                            let argExprPrebinder, argExpr = coerceExpr false calledArgTy ReflectedArgInfo.None callerArg
+                            let argExprPrebinder, argExpr = coerceExpr calledArgTy ReflectedArgInfo.None callerArg
                             let action = BuildRecdFieldSet cenv.g m objExpr rfinfo argExpr 
                             argExprPrebinder, action, Item.RecdField rfinfo
 
