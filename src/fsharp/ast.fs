@@ -278,7 +278,7 @@ type
     /// is detected, to allow more efficient processing of large arrays of uint16 constants.
     | Bytes of bytes: byte[] * range: range
 
-    /// Used internally in the typechecker once an array of unit16 constants
+    /// Used internally in the typechecker once an array of uint16 constants
     /// is detected, to allow more efficient processing of large arrays of uint16 constants.
     | UInt16s of uint16[]
 
