@@ -10253,7 +10253,7 @@ and TcMethodApplication
             // to their default values (for optionals) and be part of the return tuple (for out args). 
             | None, [calledMeth] -> 
                 let curriedArgTys, returnTy = UnifyMatchingSimpleArgumentTypes exprTy calledMeth
-                let unnamedCurriedCallerArgs = curriedArgTys |> List.mapSquared (fun ty -> CallerArg.make(ty, mMethExpr, false, dummyExpr))  
+                let unnamedCurriedCallerArgs = curriedArgTys |> List.mapSquared (fun ty -> { Type = ty; Range = mMethExpr; IsOptional = false; Expr = dummyExpr })
                 let namedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.map (fun _ -> [])
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, returnTy
                 
@@ -10271,13 +10271,13 @@ and TcMethodApplication
                        argTys
                     else 
                        [domainTy]
-                let unnamedCurriedCallerArgs = [argTys |> List.map (fun ty -> CallerArg.make(ty, mMethExpr, false, dummyExpr)) ]
+                let unnamedCurriedCallerArgs = [argTys |> List.map (fun ty -> { Type = ty; Range = mMethExpr; IsOptional = false; Expr = dummyExpr }) ]
                 let namedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.map (fun _ -> [])
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, returnTy
 
             | Some (unnamedCurriedCallerArgs, namedCurriedCallerArgs), _ -> 
-                let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg.make(argTy, mArg, false, argExpr))
-                let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg.make(argTy, mArg, isOpt, argExpr))) 
+                let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> { Type = argTy; Range = mArg; IsOptional = false; Expr = argExpr })
+                let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, { Type = argTy; Range = mArg; IsOptional = isOpt; Expr = argExpr })) 
                 unnamedCurriedCallerArgs, namedCurriedCallerArgs, exprTy
 
         let callerArgCounts = (List.sumBy List.length unnamedCurriedCallerArgs, List.sumBy List.length namedCurriedCallerArgs)
@@ -10335,7 +10335,7 @@ and TcMethodApplication
                     [argTys], returnTy
                          
             let lambdaVarsAndExprs = curriedArgTys |> List.mapiSquared (fun i j ty -> mkCompGenLocal mMethExpr ("arg"+string i+string j) ty)
-            let unnamedCurriedCallerArgs = lambdaVarsAndExprs |> List.mapSquared (fun (_, e) -> CallerArg.make(tyOfExpr cenv.g e, e.Range, false, e))
+            let unnamedCurriedCallerArgs = lambdaVarsAndExprs |> List.mapSquared (fun (_, e) -> { Type = (tyOfExpr cenv.g e); Range = e.Range; IsOptional = false; Expr = e })
             let namedCurriedCallerArgs = lambdaVarsAndExprs |> List.map (fun _ -> [])
             let lambdaVars = List.mapSquared fst lambdaVarsAndExprs
             unnamedCurriedCallerArgs, namedCurriedCallerArgs, Some lambdaVars, returnTy, tpenv
@@ -10343,8 +10343,8 @@ and TcMethodApplication
         | Some (unnamedCurriedCallerArgs, namedCurriedCallerArgs) ->
             // This is the case where some explicit arguments have been given.
 
-            let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> CallerArg.make(argTy, mArg, false, argExpr)) 
-            let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, CallerArg.make(argTy, mArg, isOpt, argExpr))) 
+            let unnamedCurriedCallerArgs = unnamedCurriedCallerArgs |> List.mapSquared (fun (argExpr, argTy, mArg) -> { Type = argTy; Range = mArg; IsOptional = false; Expr = argExpr })
+            let namedCurriedCallerArgs = namedCurriedCallerArgs |> List.mapSquared (fun (id, isOpt, argExpr, argTy, mArg) -> CallerNamedArg(id, { Type = argTy; Range = mArg; IsOptional = isOpt; Expr = argExpr })) 
 
             // Collect the information for F# 3.1 lambda propagation rule, and apply the caller's object type to the method's object type if the rule is relevant.
             let lambdaPropagationInfo = 
@@ -10701,7 +10701,7 @@ and TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoFo
                   if AddCxTypeMustSubsumeTypeMatchingOnlyUndoIfFailed env.DisplayEnv cenv.css mArg adjustedCalledTy argTy then
                      yield info |]
 
-    CallerArg.make(argTy, mArg, isOpt, e'), (lambdaPropagationInfo, tpenv)
+    { Type = argTy; Range = mArg; IsOptional = isOpt; Expr = e' }, (lambdaPropagationInfo, tpenv)
 
 /// Typecheck "new Delegate(fun x y z -> ...)" constructs
 and TcNewDelegateThen cenv overallTy env tpenv mDelTy mExprAndArg delegateTy arg atomicFlag delayed =
@@ -10714,7 +10714,7 @@ and TcNewDelegateThen cenv overallTy env tpenv mDelTy mExprAndArg delegateTy arg
     match args with 
     | [farg], [] -> 
         let m = arg.Range
-        let callerArg, (_, tpenv) = TcMethodArg cenv env (Array.empty, tpenv) (Array.empty, CallerArg.make(fty, m, false, farg))
+        let callerArg, (_, tpenv) = TcMethodArg cenv env (Array.empty, tpenv) (Array.empty, { Type = fty; Range = m; IsOptional = false; Expr = farg })
         let expr = BuildNewDelegateExpr (None, cenv.g, cenv.amap, delegateTy, invokeMethInfo, delArgTys, callerArg.Expr, fty, m)
         PropagateThenTcDelayed cenv overallTy env tpenv m (MakeApplicableExprNoFlex cenv expr) delegateTy atomicFlag delayed  
     | _ ->  
