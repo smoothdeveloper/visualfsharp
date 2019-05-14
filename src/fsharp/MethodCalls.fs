@@ -44,15 +44,12 @@ open FSharp.Compiler.ExtensionTyping
 ///
 /// The bool indicates if named using a '?' 
 type CallerArg<'T> = 
-    { Type: TType 
-      Range: range
-      IsOptional: bool 
-      Expr: 'T }
-    
-module CallerArg =
-
-  let make (ty, range, isOpt, exprInfo) = { Type = ty; Range = range; IsOptional = isOpt; Expr = exprInfo }
-  let makeOptional (ty, range, exprInfo) = { Type = ty; Range = range; IsOptional = true; Expr = exprInfo }
+    { 
+        Type: TType 
+        Range: range
+        IsOptional: bool 
+        Expr: 'T 
+    }
 
 /// Represents the information about an argument in the method being called
 type CalledArg = 
