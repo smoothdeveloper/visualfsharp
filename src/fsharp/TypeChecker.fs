@@ -10070,7 +10070,7 @@ and TcMethodApplication
        let isOutArg = callerArg.IsOptional
 
        if isByrefTy g calledArgTy && isRefCellTy g callerArgTy then 
-           None, Expr.Op (TOp.RefAddrGet false, [destRefCellTy g callerArgTy], [callerArg.Expr], m) 
+           None, Expr.Op (TOp.RefAddrGet false, [destRefCellTy g callerArgTy], [callerArgExpr], m) 
 
 #if IMPLICIT_ADDRESS_OF
        elif isInByrefTy g calledArgTy && not (isByrefTy cenv.g callerArgTy) then 
