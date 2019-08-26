@@ -100,6 +100,7 @@ type CallerNamedArg<'T> =
     member x.Name = x.Ident.idText
     member x.CallerArg = (let (CallerNamedArg(_, a)) = x in a)
 
+    #if GAUTHIER
 /// Represents the list of unnamed / named arguments at method call site
 // todo: figure out / document why we are using list²
 [<Struct>]
@@ -115,7 +116,7 @@ type CallerArgs<'T> =
       [ (x.Unnamed |> List.map (List.map (fun i -> None, i.Type))) |> List.concat // not sure why we end up with a nested list
         (x.Named |> List.map (List.map (fun i -> Some i.Name, i.CallerArg.Type))) |> List.concat ]
       |> List.concat
-    
+    #endif
 //-------------------------------------------------------------------------
 // Callsite conversions
 //------------------------------------------------------------------------- 
@@ -786,12 +787,13 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
 
             // Combine the variable allocators (if any)
             let wrapper = (wrapper >> wrapper2)
-            let callerArg = CallerArg(calledArgTy, mMethExpr, false, expr)
+            let callerArg = { Type = calledArgTy; Range= mMethExpr; IsOptional =false; Expr = expr}
             { NamedArgIdOpt = None; CalledArg = calledArg; CallerArg = callerArg }, wrapper)
 
     // Adjust all the optional arguments 
     let wrapOptionalArg (assignedArg: AssignedCalledArg<_>) =
-        let (CallerArg(callerArgTy, m, isOptCallerArg, callerArgExpr)) = assignedArg.CallerArg
+        let callerArgTy, m, isOptCallerArg, callerArgExpr = 
+          assignedArg.CallerArg.Type, assignedArg.CallerArg.Range, assignedArg.CallerArg.IsOptional, assignedArg.CallerArg.Expr
         match assignedArg.CalledArg.OptArgInfo with 
         | NotOptional -> 
             if isOptCallerArg then errorR(Error(FSComp.SR.tcFormalArgumentIsNotOptional(), m))
@@ -823,7 +825,7 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
                             callerArgExpr // should be unreachable 
                             
                 | _ -> failwith "Unreachable"
-            { assignedArg with CallerArg=CallerArg(tyOfExpr g callerArgExpr2, m, isOptCallerArg, callerArgExpr2) }
+            { assignedArg with CallerArg= { Type = tyOfExpr g callerArgExpr2; Range = m; IsOptional = isOptCallerArg; Expr = callerArgExpr2 } }
 
     let adjustedNormalUnnamedArgs = List.map wrapOptionalArg unnamedArgs
     let adjustedAssignedNamedArgs = List.map wrapOptionalArg assignedNamedArgs
@@ -837,7 +839,13 @@ let AdjustOutCallerArgExprs g (calledMeth: CalledMeth<_>) mMethExpr =
         let outArgTy = destByrefTy g calledArgTy
         let outv, outArgExpr = mkMutableCompGenLocal mMethExpr PrettyNaming.outArgCompilerGeneratedName outArgTy // mutable! 
         let expr = mkDefault (mMethExpr, outArgTy)
-        let callerArg = CallerArg (calledArgTy, mMethExpr, false, mkValAddr mMethExpr false (mkLocalValRef outv))
+        //let callerArg = CallerArg (calledArgTy, mMethExpr, false, mkValAddr mMethExpr false (mkLocalValRef outv))
+        let callerArg = { 
+          Type = calledArgTy
+          Range= mMethExpr
+          IsOptional =false
+          Expr = (mkValAddr mMethExpr false (mkLocalValRef outv))
+        }
         let outArg = { NamedArgIdOpt=None;CalledArg=calledArg;CallerArg=callerArg }
         outArg, outArgExpr, mkCompGenBind outv expr) 
         |> List.unzip3
@@ -855,14 +863,14 @@ let AdjustParamArrayCallerArgExprs g amap infoReader ad (calledMeth: CalledMeth<
         let paramArrayPreBinders, es = 
             paramArrayCallerArgs  
             |> List.map (fun callerArg -> 
-                let (CallerArg(callerArgTy, m, isOutArg, callerArgExpr)) = callerArg
+                let callerArgTy, m, isOutArg, callerArgExpr = callerArg.Type, callerArg.Range, callerArg.IsOptional, callerArg.Expr 
                 AdjustCallerArgExprForCoercions g amap infoReader ad isOutArg paramArrayCalledArgElementType paramArrayCalledArg.ReflArgInfo callerArgTy m callerArgExpr)
             |> List.unzip
 
         let arg = 
             [ { NamedArgIdOpt = None
                 CalledArg=paramArrayCalledArg
-                CallerArg=CallerArg(paramArrayCalledArg.CalledArgumentType, mMethExpr, false, Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr)) } ]
+                CallerArg={Type = paramArrayCalledArg.CalledArgumentType; Range= mMethExpr; IsOptional= false; Expr = Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr)} } ]
         paramArrayPreBinders, arg
 
 /// Build the argument list for a method call. Adjust for param array, optional arguments, byref arguments and coercions.
@@ -915,8 +923,7 @@ let AdjustCallerArgExprs tcFieldInit eCallerMemberName g amap infoReader ad (cal
             let isOutArg = assignedArg.CalledArg.IsOutArg
             let reflArgInfo = assignedArg.CalledArg.ReflArgInfo
             let calledArgTy = assignedArg.CalledArg.CalledArgumentType
-            let (CallerArg(callerArgTy, m, _, e)) = assignedArg.CallerArg
-    
+            let callerArgTy, m, e = let callerArg = assignedArg.CallerArg in callerArg.Type, callerArg.Range, callerArg.Expr
             AdjustCallerArgExprForCoercions g amap infoReader ad isOutArg calledArgTy reflArgInfo callerArgTy m e)
         |> List.unzip
 

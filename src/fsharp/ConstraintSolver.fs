@@ -2445,7 +2445,7 @@ and ResolveOverloading
                                    reqdRetTyOpt 
                                    candidate)
 
-            let failOverloading overloadResolutionFailure = 
+            let failOverloading (overloadResolutionFailure: OverloadResolutionFailure) = 
                 // Try to extract information to give better error for ambiguous op_Explicit and op_Implicit 
                 let convOpData = 
                     if isOpConversion then 
