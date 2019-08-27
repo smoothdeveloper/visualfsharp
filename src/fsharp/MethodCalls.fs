@@ -791,7 +791,7 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
 
             // Combine the variable allocators (if any)
             let wrapper = (wrapper >> wrapper2)
-            let callerArg = CallerArg.make(calledArgTy, mMethExpr, false, expr)
+            let callerArg = { Type = calledArgTy; Range = mMethExpr; IsOptional = false; Expr = expr } 
             { NamedArgIdOpt = None; CalledArg = calledArg; CallerArg = callerArg }, wrapper)
 
     // Adjust all the optional arguments 
@@ -828,7 +828,7 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
                             callerArgExpr // should be unreachable 
                             
                 | _ -> failwith "Unreachable"
-            { assignedArg with CallerArg=CallerArg.make(tyOfExpr g callerArgExpr2, m, isOptCallerArg, callerArgExpr2) }
+            { assignedArg with CallerArg= { Type = tyOfExpr g callerArgExpr2; Range = m; IsOptional = isOptCallerArg; Expr = callerArgExpr2 } }
 
     let adjustedNormalUnnamedArgs = List.map wrapOptionalArg unnamedArgs
     let adjustedAssignedNamedArgs = List.map wrapOptionalArg assignedNamedArgs
@@ -842,7 +842,7 @@ let AdjustOutCallerArgExprs g (calledMeth: CalledMeth<_>) mMethExpr =
         let outArgTy = destByrefTy g calledArgTy
         let outv, outArgExpr = mkMutableCompGenLocal mMethExpr PrettyNaming.outArgCompilerGeneratedName outArgTy // mutable! 
         let expr = mkDefault (mMethExpr, outArgTy)
-        let callerArg = CallerArg.make (calledArgTy, mMethExpr, false, mkValAddr mMethExpr false (mkLocalValRef outv))
+        let callerArg = { Type = calledArgTy; Range = mMethExpr; IsOptional = false; Expr = mkValAddr mMethExpr false (mkLocalValRef outv) }
         let outArg = { NamedArgIdOpt=None;CalledArg=calledArg;CallerArg=callerArg }
         outArg, outArgExpr, mkCompGenBind outv expr) 
         |> List.unzip3
@@ -867,7 +867,7 @@ let AdjustParamArrayCallerArgExprs g amap infoReader ad (calledMeth: CalledMeth<
         let arg = 
             [ { NamedArgIdOpt = None
                 CalledArg=paramArrayCalledArg
-                CallerArg=CallerArg.make(paramArrayCalledArg.CalledArgumentType, mMethExpr, false, Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr)) } ]
+                CallerArg = { Type = paramArrayCalledArg.CalledArgumentType; Range = mMethExpr; IsOptional = false; Expr = Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr) } } ]
         paramArrayPreBinders, arg
 
 /// Build the argument list for a method call. Adjust for param array, optional arguments, byref arguments and coercions.
