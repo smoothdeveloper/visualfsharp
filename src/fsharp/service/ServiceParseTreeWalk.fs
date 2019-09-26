@@ -36,91 +36,91 @@ type SyntaxVisitorBase<'T>() =
         ignore (path, traverseSynExpr, defaultTraverse, synExpr)
         None
 
-    /// VisitTypeAbbrev(ty,m), defaults to ignoring this leaf of the AST
+        /// VisitTypeAbbrev(ty,m), defaults to ignoring this leaf of the AST
     abstract VisitTypeAbbrev: path: SyntaxVisitorPath * synType: SynType * range: range -> 'T option
     default _.VisitTypeAbbrev(path, synType, range) =
         ignore (path, synType, range)
         None
 
-    /// VisitImplicitInherit(defaultTraverse,ty,expr,m), defaults to just visiting expr
+        /// VisitImplicitInherit(defaultTraverse,ty,expr,m), defaults to just visiting expr
     abstract VisitImplicitInherit: path: SyntaxVisitorPath * defaultTraverse: (SynExpr -> 'T option) * inheritedType: SynType * synArgs: SynExpr * range: range -> 'T option
     default _.VisitImplicitInherit(path, defaultTraverse, inheritedType, synArgs, range) =
         ignore (path, inheritedType, range)
         defaultTraverse synArgs
 
-    /// VisitModuleDecl allows overriding module declaration behavior
+        /// VisitModuleDecl allows overriding module declaration behavior
     abstract VisitModuleDecl: path: SyntaxVisitorPath * defaultTraverse: (SynModuleDecl -> 'T option) * synModuleDecl: SynModuleDecl -> 'T option
     default _.VisitModuleDecl(path, defaultTraverse, synModuleDecl) =
         ignore path
         defaultTraverse synModuleDecl
 
-    /// VisitBinding allows overriding binding behavior (note: by default it would defaultTraverse expression)
+        /// VisitBinding allows overriding binding behavior (note: by default it would defaultTraverse expression)
     abstract VisitBinding: path: SyntaxVisitorPath * defaultTraverse: (SynBinding -> 'T option) * synBinding: SynBinding -> 'T option
     default _.VisitBinding(path, defaultTraverse, synBinding) =
         ignore path
         defaultTraverse synBinding
 
-    /// VisitMatchClause allows overriding clause behavior (note: by default it would defaultTraverse expression)
+        /// VisitMatchClause allows overriding clause behavior (note: by default it would defaultTraverse expression)
     abstract VisitMatchClause: path: SyntaxVisitorPath * defaultTraverse: (SynMatchClause -> 'T option) * matchClause: SynMatchClause -> 'T option
     default _.VisitMatchClause(path, defaultTraverse, matchClause) =
         ignore path
         defaultTraverse matchClause
 
-    /// VisitInheritSynMemberDefn allows overriding inherit behavior (by default do nothing)
+        /// VisitInheritSynMemberDefn allows overriding inherit behavior (by default do nothing)
     abstract VisitInheritSynMemberDefn: path: SyntaxVisitorPath * componentInfo: SynComponentInfo * typeDefnKind: SynTypeDefnKind * SynType  * SynMemberDefns * range -> 'T option
     default _.VisitInheritSynMemberDefn(path, componentInfo, typeDefnKind, synType, members, range) =
         ignore (path, componentInfo, typeDefnKind, synType, members, range)
         None
 
-    /// VisitInterfaceSynMemberDefnType allows overriding behavior for visiting interface member in types (by default - do nothing)
+        /// VisitInterfaceSynMemberDefnType allows overriding behavior for visiting interface member in types (by default - do nothing)
     abstract VisitInterfaceSynMemberDefnType: path: SyntaxVisitorPath * synType: SynType -> 'T option
     default _.VisitInterfaceSynMemberDefnType(path, synType) =
         ignore (path, synType)
         None
 
-    /// VisitRecordField allows overriding behavior when visiting l.h.s. of constructed record instances
+        /// VisitRecordField allows overriding behavior when visiting l.h.s. of constructed record instances
     abstract VisitRecordField: path: SyntaxVisitorPath * copyOpt: SynExpr option * recordField: LongIdentWithDots option -> 'T option
     default _.VisitRecordField (path, copyOpt, recordField) =
         ignore (path, copyOpt, recordField)
         None
 
-    /// VisitHashDirective allows overriding behavior when visiting hash directives in FSX scripts, like #r, #load and #I.
+        /// VisitHashDirective allows overriding behavior when visiting hash directives in FSX scripts, like #r, #load and #I.
     abstract VisitHashDirective: path: SyntaxVisitorPath * hashDirective: ParsedHashDirective * range: range -> 'T option
     default _.VisitHashDirective (path, hashDirective, range) =
         ignore (path, hashDirective, range)
         None
 
-    /// VisitModuleOrNamespace allows overriding behavior when visiting module or namespaces
+        /// VisitModuleOrNamespace allows overriding behavior when visiting module or namespaces
     abstract VisitModuleOrNamespace: path: SyntaxVisitorPath * synModuleOrNamespace: SynModuleOrNamespace -> 'T option
     default _.VisitModuleOrNamespace (path, synModuleOrNamespace) =
         ignore (path, synModuleOrNamespace)
         None
 
-    /// VisitComponentInfo allows overriding behavior when visiting type component infos 
+        /// VisitComponentInfo allows overriding behavior when visiting type component infos 
     abstract VisitComponentInfo: path: SyntaxVisitorPath * synComponentInfo: SynComponentInfo -> 'T option
     default _.VisitComponentInfo (path, synComponentInfo) =
         ignore (path, synComponentInfo)
         None
 
-    /// VisitLetOrUse allows overriding behavior when visiting module or local let or use bindings
+        /// VisitLetOrUse allows overriding behavior when visiting module or local let or use bindings
     abstract VisitLetOrUse: path: SyntaxVisitorPath * isRecursive: bool * defaultTraverse: (SynBinding -> 'T option) * bindings: SynBinding list * range: range -> 'T option
     default _.VisitLetOrUse (path, isRecursive, defaultTraverse, bindings, range) =
         ignore (path, isRecursive, defaultTraverse, bindings, range)
         None
 
-    /// VisitType allows overriding behavior when visiting simple pats
+        /// VisitType allows overriding behavior when visiting simple pats
     abstract VisitSimplePats: path: SyntaxVisitorPath * synPats: SynSimplePat list -> 'T option
     default _.VisitSimplePats (path, synPats) =
         ignore (path, synPats)
         None
 
-    /// VisitPat allows overriding behavior when visiting patterns
+        /// VisitPat allows overriding behavior when visiting patterns
     abstract VisitPat: path: SyntaxVisitorPath * defaultTraverse: (SynPat -> 'T option) * synPat: SynPat -> 'T option
     default _.VisitPat (path, defaultTraverse, synPat) =
         ignore path
         defaultTraverse synPat
 
-    /// VisitType allows overriding behavior when visiting type hints (x: ..., etc.)
+        /// VisitType allows overriding behavior when visiting type hints (x: ..., etc.)
     abstract VisitType: path: SyntaxVisitorPath * defaultTraverse: (SynType -> 'T option) * synType: SynType -> 'T option
     default _.VisitType (path, defaultTraverse, synType) =
         ignore path
@@ -739,7 +739,7 @@ module SyntaxTraversal =
                 | Some x -> Some x
                 | None -> synBindingList |> List.map (fun x -> dive x x.RangeOfBindingWithRhs (traverseSynBinding path)) |> pick m
             | SynMemberDefn.AbstractSlot(_synValSig, _memberFlags, _range) -> None
-            | SynMemberDefn.Interface(synType, synMemberDefnsOption, _range) -> 
+            | SynMemberDefn.Interface(synType, synMemberDefnsOption, _selfIdentifier, _range) -> 
                 match visitor.VisitInterfaceSynMemberDefnType(path, synType) with
                 | None -> 
                     match synMemberDefnsOption with 

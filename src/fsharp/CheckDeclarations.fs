@@ -2357,7 +2357,7 @@ let TcMutRecDefns_Phase2 (cenv: cenv) envInitial bindsm scopem mutRecNSInfo (env
         let (MutRecDefnsPhase2DataForTycon(_, _, declKind, tcref, _, _, declaredTyconTypars, members, _, _, _)) = tyconMembersData
         let overridesOK = DeclKind.CanOverrideOrImplement declKind
         members |> List.collect (function
-            | SynMemberDefn.Interface(ity, defnOpt, _) -> 
+            | SynMemberDefn.Interface(ity, defnOpt, _selfIdentifier, _) -> 
                   let _, ty = if tcref.Deref.IsExceptionDecl then [], g.exn_ty else generalizeTyconRef tcref
                   let m = ity.Range
                   if tcref.IsTypeAbbrev then error(Error(FSComp.SR.tcTypeAbbreviationsCannotHaveInterfaceDeclaration(), m))
@@ -4608,7 +4608,7 @@ module TcDeclarations =
             match ds with
              | SynMemberDefn.Member (_, m) :: _ -> errorR(InternalError("List.takeUntil is wrong, have binding", m))
              | SynMemberDefn.AbstractSlot (_, _, m) :: _ -> errorR(InternalError("List.takeUntil is wrong, have slotsig", m))
-             | SynMemberDefn.Interface (_, _, m) :: _ -> errorR(InternalError("List.takeUntil is wrong, have interface", m))
+             | SynMemberDefn.Interface (range=m) :: _ -> errorR(InternalError("List.takeUntil is wrong, have interface", m))
              | SynMemberDefn.ImplicitCtor (_, _, _, _, _, m) :: _ -> errorR(InternalError("implicit class construction with two implicit constructions", m))
              | SynMemberDefn.AutoProperty (_, _, _, _, _, _, _, _, _, _, m) :: _ -> errorR(InternalError("List.takeUntil is wrong, have auto property", m))
              | SynMemberDefn.ImplicitInherit (_, _, _, m) :: _ -> errorR(Error(FSComp.SR.tcTypeDefinitionsWithImplicitConstructionMustHaveOneInherit(), m))
@@ -4626,7 +4626,7 @@ module TcDeclarations =
              | SynMemberDefn.AutoProperty(_, _, _, _, _, _, _, _, _, _, m) :: _ -> errorR(Error(FSComp.SR.tcAutoPropertyRequiresImplicitConstructionSequence(), m))
              | SynMemberDefn.LetBindings (_, false, _, m) :: _ -> errorR(Error(FSComp.SR.tcLetAndDoRequiresImplicitConstructionSequence(), m))
              | SynMemberDefn.AbstractSlot (_, _, m) :: _ 
-             | SynMemberDefn.Interface (_, _, m) :: _ 
+             | SynMemberDefn.Interface (range=m) :: _ 
              | SynMemberDefn.Inherit (_, _, m) :: _ 
              | SynMemberDefn.ValField (_, m) :: _ 
              | SynMemberDefn.NestedType (_, _, m) :: _ -> errorR(InternalError("CheckMembersForm: List.takeUntil is wrong", m))
@@ -4640,12 +4640,12 @@ module TcDeclarations =
     /// body = members
     ///        where members contain methods/overrides, also implicit ctor, inheritCall and local definitions.
     let rec private SplitTyconDefn (SynTypeDefn(synTyconInfo, trepr, extraMembers, _, _)) = 
-        let implements1 = List.choose (function SynMemberDefn.Interface (ty, _, _) -> Some(ty, ty.Range) | _ -> None) extraMembers
+        let implements1 = List.choose (function SynMemberDefn.Interface (ty, _, _selfIdentifier, _) -> Some(ty, ty.Range) | _ -> None) extraMembers
         match trepr with
         | SynTypeDefnRepr.ObjectModel(kind, cspec, m) ->
             CheckMembersForm cspec
             let fields = cspec |> List.choose (function SynMemberDefn.ValField (f, _) -> Some f | _ -> None)
-            let implements2 = cspec |> List.choose (function SynMemberDefn.Interface (ty, _, _) -> Some(ty, ty.Range) | _ -> None)
+            let implements2 = cspec |> List.choose (function SynMemberDefn.Interface (ty, _, _selfIdentifier, _) -> Some(ty, ty.Range) | _ -> None)
             let inherits =
                 cspec |> List.choose (function 
                     | SynMemberDefn.Inherit (ty, idOpt, m) -> Some(ty, m, idOpt)
@@ -4691,7 +4691,7 @@ module TcDeclarations =
 
                         [(SynMemberDefn.LetBindings ([binding], isStatic, false, mWholeAutoProp))]
 
-                    | SynMemberDefn.Interface (_, Some membs, _) -> membs |> List.collect preAutoProps
+                    | SynMemberDefn.Interface (_, Some membs, _selfIdentifier, _) -> membs |> List.collect preAutoProps
                     | SynMemberDefn.LetBindings _
                     | SynMemberDefn.ImplicitCtor _ 
                     | SynMemberDefn.Open _
@@ -4739,9 +4739,9 @@ module TcDeclarations =
                                     SynMemberDefn.Member (binding, mMemberPortion) 
                                 yield setter 
                             | _ -> ()]
-                    | SynMemberDefn.Interface (ty, Some membs, m) -> 
+                    | SynMemberDefn.Interface (ty, Some membs, selfIdent, m) -> 
                         let membs' = membs |> List.collect postAutoProps
-                        [SynMemberDefn.Interface (ty, Some membs', m)]
+                        [SynMemberDefn.Interface (ty, Some membs', selfIdent, m)]
                     | SynMemberDefn.LetBindings _
                     | SynMemberDefn.ImplicitCtor _ 
                     | SynMemberDefn.Open _
@@ -4756,7 +4756,7 @@ module TcDeclarations =
             let isConcrete = 
                 members |> List.exists (function 
                     | SynMemberDefn.Member(SynBinding(_, _, _, _, _, _, SynValData(Some memberFlags, _, _), _, _, _, _, _), _) -> not memberFlags.IsDispatchSlot 
-                    | SynMemberDefn.Interface (_, defOpt, _) -> Option.isSome defOpt
+                    | SynMemberDefn.Interface (_, defOpt, _selfIdentifier, _) -> Option.isSome defOpt
                     | SynMemberDefn.LetBindings _ -> true
                     | SynMemberDefn.ImplicitCtor _ -> true
                     | SynMemberDefn.ImplicitInherit _ -> true

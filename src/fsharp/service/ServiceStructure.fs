@@ -493,7 +493,7 @@ module Structure =
                parseBinding binding
             | SynMemberDefn.LetBindings (bindings, _, _, _) ->
                 parseBindings bindings
-            | SynMemberDefn.Interface (tp, iMembers, r) ->
+            | SynMemberDefn.Interface (tp, iMembers, _selfIdentifier, r) ->
                 rcheck Scope.Interface Collapse.Below d.Range (Range.endToEnd tp.Range d.Range)
                 match iMembers with
                 | Some members -> List.iter (parseSynMemberDefn r) members

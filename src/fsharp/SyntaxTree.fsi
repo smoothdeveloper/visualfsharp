@@ -1773,6 +1773,7 @@ type SynMemberDefn =
     | Interface of
         interfaceType: SynType *
         members: SynMemberDefns option *
+        selfIdentifier: Ident option *
         range: range
 
     /// An 'inherit' definition within a class

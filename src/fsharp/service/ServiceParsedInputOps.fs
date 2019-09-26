@@ -155,18 +155,18 @@ module Entity =
                           | Some parent -> min parent.Length candidate.Length
                           | None -> candidate.Length
                       candidate.[0..openableNsCount - 2], candidate.[openableNsCount - 1..]
-              
+                  
                   let openableNs = cutAutoOpenModules autoOpenParent fullOpenableNs
-                   
+            
                   let getRelativeNs ns =
                       match targetNamespace, candidateNamespace with
                       | Some targetNs, Some candidateNs when candidateNs = targetNs ->
                           getRelativeNamespace targetScope ns
                       | None, _ -> getRelativeNamespace targetScope ns
                       | _ -> ns
-              
+                      
                   let relativeNs = getRelativeNs openableNs
-              
+                      
                   match relativeNs, restIdents with
                   | [||], [||] -> None
                   | [||], [|_|] -> None
@@ -659,7 +659,7 @@ module ParsedInput =
                 List.tryPick walkAttribute attrs |> Option.orElse (List.tryPick walkSimplePat simplePats)
             | SynMemberDefn.ImplicitInherit(t, e, _, _) -> walkType t |> Option.orElse (walkExpr e)
             | SynMemberDefn.LetBindings(bindings, _, _, _) -> List.tryPick walkBinding bindings
-            | SynMemberDefn.Interface(t, members, _) -> 
+            | SynMemberDefn.Interface(t, members, _selfIdentifier, _) -> 
                 walkType t |> Option.orElse (members |> Option.bind (List.tryPick walkMember))
             | SynMemberDefn.Inherit(t, _, _) -> walkType t
             | SynMemberDefn.ValField(field, _) -> walkField field
@@ -1417,7 +1417,7 @@ module ParsedInput =
                 List.iter walkSimplePat simplePats
             | SynMemberDefn.ImplicitInherit (t, e, _, _) -> walkType t; walkExpr e
             | SynMemberDefn.LetBindings (bindings, _, _, _) -> List.iter walkBinding bindings
-            | SynMemberDefn.Interface (t, members, _) ->
+            | SynMemberDefn.Interface (t, members, _, _) ->
                 walkType t
                 members |> Option.iter (List.iter walkMember)
             | SynMemberDefn.Inherit (t, _, _) -> walkType t
