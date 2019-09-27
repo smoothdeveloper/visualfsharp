@@ -1632,12 +1632,14 @@ type AssemblyBuilder(cenv: cenv, anonTypeTable: AnonTypeGenerationTable) as mgbu
             let _, typ = generalizeTyconRef tcref
             let tcaug = tcref.TypeContents
 
+            let mkInterfaceAugmentation t =
+              { interfaceType = t; isCompilerGenerated = true; selfIdentifier = None; range = m}
             tcaug.tcaug_interfaces <-
-                [ (g.mk_IStructuralComparable_ty, true, m)
-                  (g.mk_IComparable_ty, true, m)
-                  (mkAppTy g.system_GenericIComparable_tcref [typ], true, m)
-                  (g.mk_IStructuralEquatable_ty, true, m)
-                  (mkAppTy g.system_GenericIEquatable_tcref [typ], true, m) ]
+                [ mkInterfaceAugmentation (g.mk_IStructuralComparable_ty)
+                  mkInterfaceAugmentation (g.mk_IComparable_ty)
+                  mkInterfaceAugmentation (mkAppTy g.system_GenericIComparable_tcref [typ])
+                  mkInterfaceAugmentation (g.mk_IStructuralEquatable_ty)
+                  mkInterfaceAugmentation (mkAppTy g.system_GenericIEquatable_tcref [typ]) ]
 
             let vspec1, vspec2 = AugmentWithHashCompare.MakeValsForEqualsAugmentation g tcref
             let evspec1, evspec2, evspec3 = AugmentWithHashCompare.MakeValsForEqualityWithComparerAugmentation g tcref
@@ -1653,7 +1655,7 @@ type AssemblyBuilder(cenv: cenv, anonTypeTable: AnonTypeGenerationTable) as mgbu
 
             let ilTypeDefAttribs = mkILCustomAttrs [ g.CompilerGeneratedAttribute; mkCompilationMappingAttr g (int SourceConstructFlags.RecordType) ]
 
-            let ilInterfaceTys = [ for (ity, _, _) in tcaug.tcaug_interfaces -> GenType cenv.amap m (TypeReprEnv.ForTypars tps) ity ]
+            let ilInterfaceTys = [ for x in tcaug.tcaug_interfaces -> GenType cenv.amap m (TypeReprEnv.ForTypars tps) x.interfaceType ]
 
             let ilTypeDef =
                 mkILGenericClass (ilTypeRef.Name, ILTypeDefAccess.Public, ilGenericParams, ilBaseTy, ilInterfaceTys,

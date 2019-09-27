@@ -717,7 +717,7 @@ module DispatchSlotChecking =
         let amap = infoReader.amap
 
         let tcaug = tycon.TypeContents        
-        let interfaces = tycon.ImmediateInterfacesOfFSharpTycon |> List.map (fun (ity, _compgen, m) -> (ity, m))
+        let interfaces = tycon.ImmediateInterfacesOfFSharpTycon |> List.map (fun x -> (x.interfaceType, x.range))
 
         let overallTy = generalizedTyconRef (mkLocalTyconRef tycon)
 

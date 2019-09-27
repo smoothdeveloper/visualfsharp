@@ -191,7 +191,7 @@ type Checker(g, amap, denv, remapInfo: SignatureRepackageInfo, checkingSig) =
 
                 let aintfs = implTycon.ImmediateInterfaceTypesOfFSharpTycon 
                 let fintfs = sigTycon.ImmediateInterfaceTypesOfFSharpTycon 
-                let aintfsUser = implTycon.TypeContents.tcaug_interfaces |> List.filter (fun (_, compgen, _) -> not compgen) |> List.map p13 
+                let aintfsUser = implTycon.TypeContents.tcaug_interfaces |> List.filter (fun x -> not x.isCompilerGenerated) |> List.map (fun x -> x.interfaceType)
                 let flatten tys = 
                    tys 
                    |> List.collect (AllSuperTypesOfType g amap m AllowMultiIntfInstantiations.Yes) 

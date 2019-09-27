@@ -3787,12 +3787,12 @@ module DebugPrint =
                 match tycon.TypeReprInfo with 
                 | TFSharpObjectRepr r when (match r.fsobjmodel_kind with TTyconInterface -> true | _ -> false) -> []
                 | _ -> tycon.ImmediateInterfacesOfFSharpTycon
-            let iimpls = iimpls |> List.filter (fun (_, compgen, _) -> not compgen)
+            let iimpls = iimpls |> List.filter (fun x -> not x.isCompilerGenerated)
             // if TTyconInterface, the iimpls should be printed as inherited interfaces 
             if isNil adhoc && isNil iimpls then 
                 emptyL 
             else 
-                let iimplsLs = iimpls |> List.map (fun (ty, _, _) -> wordL(tagText "interface") --- typeL ty)
+                let iimplsLs = iimpls |> List.map (fun x -> wordL(tagText "interface") --- typeL x.interfaceType)
                 let adhocLs = adhoc |> List.map (fun vref -> valAtBindL g vref.Deref)
                 (wordL(tagText "with") @@-- aboveListL (iimplsLs @ adhocLs)) @@ wordL(tagText "end")
 
@@ -3834,8 +3834,8 @@ module DebugPrint =
                        | TTyconClass, Some super -> [wordL(tagText "inherit") ^^ (typeL super)] 
                        | TTyconInterface, _ -> 
                          tycon.ImmediateInterfacesOfFSharpTycon
-                           |> List.filter (fun (_, compgen, _) -> not compgen)
-                           |> List.map (fun (ity, _, _) -> wordL(tagText "inherit") ^^ (typeL ity))
+                           |> List.filter (fun x -> not x.isCompilerGenerated)
+                           |> List.map (fun x -> wordL(tagText "inherit") ^^ (typeL x.interfaceType))
                        | _ -> []
                     let vsprs = 
                         tycon.MembersOfFSharpTyconSorted 
@@ -5497,7 +5497,7 @@ and remapTyconAug tmenv (x: TyconAugmentation) =
           tcaug_adhoc = x.tcaug_adhoc |> NameMap.map (List.map (remapValRef tmenv))
           tcaug_adhoc_list = x.tcaug_adhoc_list |> ResizeArray.map (fun (flag, vref) -> (flag, remapValRef tmenv vref))
           tcaug_super = x.tcaug_super |> Option.map (remapType tmenv)
-          tcaug_interfaces = x.tcaug_interfaces |> List.map (map1Of3 (remapType tmenv)) } 
+          tcaug_interfaces = x.tcaug_interfaces |> List.map (fun x -> { x with interfaceType = remapType tmenv x.interfaceType }) } 
 
 and remapTyconExnInfo g tmenv inp =
     match inp with 
@@ -8836,7 +8836,7 @@ let IsGenericValWithGenericConstraints g (v: Val) =
 // Does a type support a given interface? 
 type Entity with 
     member tycon.HasInterface g ty = 
-        tycon.TypeContents.tcaug_interfaces |> List.exists (fun (x, _, _) -> typeEquiv g ty x)  
+        tycon.TypeContents.tcaug_interfaces |> List.exists (fun x -> typeEquiv g ty x.interfaceType)  
 
     // Does a type have an override matching the given name and argument types? 
     // Used to detect the presence of 'Equals' and 'GetHashCode' in type checking 

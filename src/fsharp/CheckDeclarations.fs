@@ -187,7 +187,7 @@ type TyconBindingDefn = TyconBindingDefn of ContainerInfo * NewSlotsOK * DeclKin
 type MutRecSigsInitialData = MutRecShape<SynTypeDefnSig, SynValSig, SynComponentInfo> list
 type MutRecDefnsInitialData = MutRecShape<SynTypeDefn, SynBinding list, SynComponentInfo> list
 
-type MutRecDefnsPhase1DataForTycon = MutRecDefnsPhase1DataForTycon of SynComponentInfo * SynTypeDefnSimpleRepr * (SynType * range) list * preEstablishedHasDefaultCtor: bool * hasSelfReferentialCtor: bool * isAtOriginalTyconDefn: bool
+type MutRecDefnsPhase1DataForTycon = MutRecDefnsPhase1DataForTycon of SynComponentInfo * SynTypeDefnSimpleRepr * (SynType * Ident option * range) list * preEstablishedHasDefaultCtor: bool * hasSelfReferentialCtor: bool * isAtOriginalTyconDefn: bool
 type MutRecDefnsPhase1Data = MutRecShape<MutRecDefnsPhase1DataForTycon * SynMemberDefn list, RecDefnBindingInfo list, SynComponentInfo> list
 
 type MutRecDefnsPhase2DataForTycon = MutRecDefnsPhase2DataForTycon of Tycon option * ParentRef * DeclKind * TyconRef * Val option * SafeInitData * Typars * SynMemberDefn list * range * NewSlotsOK * fixupFinalAttribs: (unit -> unit)
@@ -535,12 +535,12 @@ module TcRecdUnionAndEnumDeclarations =
 // Bind elements of classes
 //------------------------------------------------------------------------- 
 
-let PublishInterface (cenv: cenv) denv (tcref: TyconRef) m compgen ty' = 
+let PublishInterface (cenv: cenv) denv (tcref: TyconRef) m compgen ty' selfIdentifier = 
     if not (isInterfaceTy cenv.g ty') then errorR(Error(FSComp.SR.tcTypeIsNotInterfaceType1(NicePrint.minimalStringOfType denv ty'), m))
     let tcaug = tcref.TypeContents
     if tcref.HasInterface cenv.g ty' then 
         errorR(Error(FSComp.SR.tcDuplicateSpecOfInterface(), m))
-    tcaug.tcaug_interfaces <- (ty', compgen, m) :: tcaug.tcaug_interfaces
+    tcaug.tcaug_interfaces <- { interfaceType = ty'; isCompilerGenerated = compgen; selfIdentifier = selfIdentifier; range = m } :: tcaug.tcaug_interfaces
 
 let TcAndPublishMemberSpec cenv env containerInfo declKind tpenv memb = 
     match memb with 
@@ -2473,8 +2473,8 @@ let TcMutRecDefns_Phase2 (cenv: cenv) envInitial bindsm scopem mutRecNSInfo (env
 
 module AddAugmentationDeclarations = 
     let tcaugHasNominalInterface g (tcaug: TyconAugmentation) tcref =
-        tcaug.tcaug_interfaces |> List.exists (fun (x, _, _) -> 
-            match tryTcrefOfAppTy g x with
+        tcaug.tcaug_interfaces |> List.exists (fun x -> 
+            match tryTcrefOfAppTy g x.interfaceType with
             | ValueSome tcref2 when tyconRefEq g tcref2 tcref -> true
             | _ -> false)
 
@@ -2504,10 +2504,10 @@ module AddAugmentationDeclarations =
                 let cvspec1, cvspec2 = AugmentWithHashCompare.MakeValsForCompareAugmentation g tcref
                 let cvspec3 = AugmentWithHashCompare.MakeValsForCompareWithComparerAugmentation g tcref
 
-                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IStructuralComparable_ty
-                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IComparable_ty
+                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IStructuralComparable_ty None
+                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IComparable_ty           None
                 if not tycon.IsExceptionDecl && not hasExplicitGenericIComparable then 
-                    PublishInterface cenv env.DisplayEnv tcref m true genericIComparableTy
+                    PublishInterface cenv env.DisplayEnv tcref m true genericIComparableTy None
                 tcaug.SetCompare (mkLocalValRef cvspec1, mkLocalValRef cvspec2)
                 tcaug.SetCompareWith (mkLocalValRef cvspec3)
                 PublishValueDefn cenv env ModuleOrMemberBinding cvspec1
@@ -2527,7 +2527,7 @@ module AddAugmentationDeclarations =
                 errorR(Error(FSComp.SR.tcImplementsIStructuralEquatableExplicitly(tycon.DisplayName), m)) 
             else
                 let evspec1, evspec2, evspec3 = AugmentWithHashCompare.MakeValsForEqualityWithComparerAugmentation g tcref
-                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IStructuralEquatable_ty                
+                PublishInterface cenv env.DisplayEnv tcref m true g.mk_IStructuralEquatable_ty None               
                 tcaug.SetHashAndEqualsWith (mkLocalValRef evspec1, mkLocalValRef evspec2, mkLocalValRef evspec3)
                 PublishValueDefn cenv env ModuleOrMemberBinding evspec1
                 PublishValueDefn cenv env ModuleOrMemberBinding evspec2
@@ -2583,7 +2583,7 @@ module AddAugmentationDeclarations =
                  let vspec1, vspec2 = AugmentWithHashCompare.MakeValsForEqualsAugmentation g tcref
                  tcaug.SetEquals (mkLocalValRef vspec1, mkLocalValRef vspec2)
                  if not tycon.IsExceptionDecl then 
-                    PublishInterface cenv env.DisplayEnv tcref m true (mkAppTy g.system_GenericIEquatable_tcref [ty])
+                    PublishInterface cenv env.DisplayEnv tcref m true (mkAppTy g.system_GenericIEquatable_tcref [ty]) None
                  PublishValueDefn cenv env ModuleOrMemberBinding vspec1
                  PublishValueDefn cenv env ModuleOrMemberBinding vspec2
                  AugmentWithHashCompare.MakeBindingsForEqualsAugmentation g tycon
@@ -3661,7 +3661,12 @@ module EstablishTypeDefinitionCores =
                 let envinner = AddDeclaredTypars CheckForDuplicateTypars (tycon.Typars m) envinner
                 let envinner = MakeInnerEnvForTyconRef envinner tcref false 
                 
-                let implementedTys, _ = List.mapFold (mapFoldFst (TcTypeAndRecover cenv NoNewTypars checkCxs ItemOccurence.UseInType envinner)) tpenv explicitImplements
+                let implementedTys = 
+                  explicitImplements 
+                  |> List.map (fun (t, selfIdent,m) -> t,(selfIdent,m)) // todo: mapFoldFst???
+                  |> List.mapFold (mapFoldFst (TcTypeAndRecover cenv NoNewTypars checkCxs ItemOccurence.UseInType envinner)) tpenv 
+                  |> fst
+                  |> List.map (fun (t, (selfIdent, m))-> t,selfIdent,m)
 
                 if firstPass then 
                     tycon.entity_attribs <- attrs
@@ -3673,11 +3678,15 @@ module EstablishTypeDefinitionCores =
                         let kind = InferTyconKind cenv.g (kind, attrs, slotsigs, fields, inSig, isConcrete, m)
 
                         let inherits = inherits |> List.map (fun (ty, m, _) -> (ty, m)) 
-                        let inheritedTys = fst (List.mapFold (mapFoldFst (TcTypeAndRecover cenv NoNewTypars checkCxs ItemOccurence.UseInType envinner)) tpenv inherits)
+                        let inheritedTys = 
+                          fst (List.mapFold (mapFoldFst (TcTypeAndRecover cenv NoNewTypars checkCxs ItemOccurence.UseInType envinner)) tpenv inherits)
+                          // add the self identifier None (reason: can't define self identifier on inherit) 
+                          // so the shape matches with implementedTys (which are the interfaces and their optional self identifier)
+                          |> List.map (fun (a,b) -> a, None, b)
                         let implementedTys, inheritedTys =   
                             match kind with 
                             | SynTypeDefnKind.Interface -> 
-                                explicitImplements |> List.iter (fun (_, m) -> errorR(Error(FSComp.SR.tcInterfacesShouldUseInheritNotInterface(), m)))
+                                explicitImplements |> List.iter (fun (_, _, m) -> errorR(Error(FSComp.SR.tcInterfacesShouldUseInheritNotInterface(), m)))
                                 (implementedTys @ inheritedTys), [] 
                             | _ -> implementedTys, inheritedTys
                         implementedTys, inheritedTys 
@@ -3688,13 +3697,13 @@ module EstablishTypeDefinitionCores =
                         // This would let the type satisfy more recursive IComparable/IStructuralHash constraints 
                         implementedTys, []
 
-                for (implementedTy, m) in implementedTys do
+                for (implementedTy, _selfIdentifier, m) in implementedTys do
                     if firstPass && isErasedType cenv.g implementedTy then 
                         errorR(Error(FSComp.SR.tcCannotInheritFromErasedType(), m)) 
 
                 // Publish interfaces, but only on the first pass, to avoid a duplicate interface check 
                 if firstPass then 
-                    implementedTys |> List.iter (fun (ty, m) -> PublishInterface cenv envinner.DisplayEnv tcref m false ty) 
+                    implementedTys |> List.iter (fun (ty, selfIdentifier, m) -> PublishInterface cenv envinner.DisplayEnv tcref m false ty selfIdentifier) 
 
                 Some (attrs, inheritedTys, synTyconRepr, tycon)
                | _ -> None)
@@ -3724,7 +3733,7 @@ module EstablishTypeDefinitionCores =
                           | SynTypeDefnKind.Opaque | SynTypeDefnKind.Class | SynTypeDefnKind.Interface -> None
                           | _ -> error(InternalError("should have inferred tycon kind", m)) 
 
-                      | [(ty, m)] -> 
+                      | [(ty, _selfIdentifier, m)] -> 
                           if not firstPass && not (match kind with SynTypeDefnKind.Class -> true | _ -> false) then 
                               errorR (Error(FSComp.SR.tcStructsInterfacesEnumsDelegatesMayNotInheritFromOtherTypes(), m)) 
                           CheckSuperType cenv ty m 
@@ -4640,12 +4649,12 @@ module TcDeclarations =
     /// body = members
     ///        where members contain methods/overrides, also implicit ctor, inheritCall and local definitions.
     let rec private SplitTyconDefn (SynTypeDefn(synTyconInfo, trepr, extraMembers, _, _)) = 
-        let implements1 = List.choose (function SynMemberDefn.Interface (ty, _, _selfIdentifier, _) -> Some(ty, ty.Range) | _ -> None) extraMembers
+        let implements1 = List.choose (function SynMemberDefn.Interface (ty, _, selfIdentifier, _) -> Some(ty, selfIdentifier, ty.Range) | _ -> None) extraMembers
         match trepr with
         | SynTypeDefnRepr.ObjectModel(kind, cspec, m) ->
             CheckMembersForm cspec
             let fields = cspec |> List.choose (function SynMemberDefn.ValField (f, _) -> Some f | _ -> None)
-            let implements2 = cspec |> List.choose (function SynMemberDefn.Interface (ty, _, _selfIdentifier, _) -> Some(ty, ty.Range) | _ -> None)
+            let implements2 = cspec |> List.choose (function SynMemberDefn.Interface (ty, _, selfIdentifier, _) -> Some(ty, selfIdentifier, ty.Range) | _ -> None)
             let inherits =
                 cspec |> List.choose (function 
                     | SynMemberDefn.Inherit (ty, idOpt, m) -> Some(ty, m, idOpt)
@@ -4770,6 +4779,7 @@ module TcDeclarations =
             let hasSelfReferentialCtor = 
                 members |> List.exists (function 
                     | SynMemberDefn.ImplicitCtor (_, _, _, thisIdOpt, _, _) 
+                    | SynMemberDefn.Interface (_, _, thisIdOpt, _) 
                     | SynMemberDefn.Member(SynBinding(_, _, _, _, _, _, SynValData(_, _, thisIdOpt), _, _, _, _, _), _) -> thisIdOpt.IsSome
                     | _ -> false)
 
@@ -4887,12 +4897,12 @@ module TcDeclarations =
     let rec private SplitTyconSignature (SynTypeDefnSig(synTyconInfo, trepr, extraMembers, _)) = 
 
         let implements1 = 
-            extraMembers |> List.choose (function SynMemberSig.Interface (f, m) -> Some(f, m) | _ -> None) 
+            extraMembers |> List.choose (function SynMemberSig.Interface (f, m) -> Some(f, None, m) | _ -> None) 
 
         match trepr with
         | SynTypeDefnSigRepr.ObjectModel(kind, cspec, m) -> 
             let fields = cspec |> List.choose (function SynMemberSig.ValField (f, _) -> Some f | _ -> None)
-            let implements2 = cspec |> List.choose (function SynMemberSig.Interface (ty, m) -> Some(ty, m) | _ -> None)
+            let implements2 = cspec |> List.choose (function SynMemberSig.Interface (ty, m) -> Some(ty, None, m) | _ -> None)
             let inherits = cspec |> List.choose (function SynMemberSig.Inherit (ty, _) -> Some(ty, m, None) | _ -> None)
             //let nestedTycons = cspec |> List.choose (function SynMemberSig.NestedType (x, _) -> Some x | _ -> None)
             let slotsigs = cspec |> List.choose (function SynMemberSig.Member (v, fl, _) when fl.IsDispatchSlot -> Some(v, fl) | _ -> None)

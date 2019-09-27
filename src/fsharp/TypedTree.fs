@@ -1133,7 +1133,7 @@ type Entity =
 
     /// Gets the immediate interface types of an F# type definition. Further interfaces may be supported through class and interface inheritance.
     member x.ImmediateInterfaceTypesOfFSharpTycon =
-        x.ImmediateInterfacesOfFSharpTycon |> List.map (fun (x, _, _) -> x)
+        x.ImmediateInterfacesOfFSharpTycon |> List.map (fun x -> x.interfaceType)
 
     /// Gets the immediate members of an F# type definition, excluding compiler-generated ones.
     /// Note: result is alphabetically sorted, then for each name the results are in declaration order
@@ -1292,6 +1292,14 @@ type CompiledTypeRepr =
 
     override x.ToString() = "CompiledTypeRepr(...)"
 
+type InterfaceTyconAugmentation =
+    {
+        interfaceType: TType
+        isCompilerGenerated: bool
+        selfIdentifier : Ident option
+        range: range
+    }
+
 [<NoEquality; NoComparison; RequireQualifiedAccess; StructuredFormatDisplay("{DebugText}")>]
 type TyconAugmentation = 
     {
@@ -1327,8 +1335,8 @@ type TyconAugmentation =
       /// Properties, methods etc. as lookup table
       mutable tcaug_adhoc: NameMultiMap<ValRef>
       
-      /// Interface implementations - boolean indicates compiler-generated 
-      mutable tcaug_interfaces: (TType * bool * range) list  
+      /// Interface implementations
+      mutable tcaug_interfaces: InterfaceTyconAugmentation list
       
       /// Super type, if any 
       mutable tcaug_super: TType option                 

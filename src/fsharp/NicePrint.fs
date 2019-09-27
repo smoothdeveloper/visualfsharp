@@ -1637,8 +1637,8 @@ module private TastDefinitionPrinting =
                 []
             elif isRecdTy g ty || isUnionTy g ty || tycon.IsStructOrEnumTycon then
                 tycon.ImmediateInterfacesOfFSharpTycon
-                |> List.filter (fun (_, compgen, _) -> not compgen)
-                |> List.map (fun (ty, _, _) -> wordL (tagKeyword "interface") --- layoutType denv ty)
+                |> List.filter (fun x -> not x.isCompilerGenerated)
+                |> List.map (fun x -> wordL (tagKeyword "interface") --- layoutType denv x.interfaceType)
             else 
                 GetImmediateInterfacesOfType SkipUnrefInterfaces.Yes g amap m ty
                 |> List.map (fun ity -> wordL (tagKeyword (if isInterfaceTy g ty then "inherit" else "interface")) --- layoutType denv ity)

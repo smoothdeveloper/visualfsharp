@@ -1928,7 +1928,7 @@ and p_tcaug p st =
            // does not work correctly (they may get incorrectly relinked to a default member)
            |> List.filter (fun (isExplicitImpl, _) -> not isExplicitImpl)
            |> List.map (fun (_, vref) -> vref.LogicalName, vref)),
-       p.tcaug_interfaces,
+       p.tcaug_interfaces |> List.map (fun x -> x.interfaceType, x.isCompilerGenerated, x.range),
        p.tcaug_super,
        p.tcaug_abstract,
        space) st
@@ -2214,7 +2214,7 @@ and u_tcaug st =
      tcaug_hasObjectGetHashCode=false
      tcaug_adhoc_list= new ResizeArray<_> (c |> List.map (fun (_, vref) -> (false, vref)))
      tcaug_adhoc=NameMultiMap.ofList c
-     tcaug_interfaces=d
+     tcaug_interfaces=d |> List.map (fun (t,isCompGen,m) -> { interfaceType = t; isCompilerGenerated = isCompGen; range = m ; selfIdentifier = None } )
      tcaug_super=e
      // pickled type definitions are always closed (i.e. no more intrinsic members allowed)
      tcaug_closed=true
