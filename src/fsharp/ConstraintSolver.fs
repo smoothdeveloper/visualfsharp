@@ -207,7 +207,7 @@ exception ConstraintSolverInfiniteTypes of displayEnv: DisplayEnv * contextInfo:
 
 exception ConstraintSolverTypesNotInEqualityRelation of displayEnv: DisplayEnv * TType * TType * range * range * ContextInfo
 
-exception ConstraintSolverTypesNotInSubsumptionRelation of displayEnv: DisplayEnv * argT: TType * paramT: TType * range * range
+exception ConstraintSolverTypesNotInSubsumptionRelation of displayEnv: DisplayEnv * argT: TType * paramT: TType * callRange: range * parameterRange: range
 
 exception ConstraintSolverMissingConstraint of displayEnv: DisplayEnv * Tast.Typar * Tast.TyparConstraint * range  * range 
 
@@ -219,7 +219,7 @@ exception ErrorFromApplyingDefault of tcGlobals: TcGlobals * displayEnv: Display
 
 exception ErrorFromAddingTypeEquation of tcGlobals: TcGlobals * displayEnv: DisplayEnv * actual: TType * expected: TType * exn * range
 
-exception ErrorsFromAddingSubsumptionConstraint of tcGlobals: TcGlobals * displayEnv: DisplayEnv * TType * TType * exn * ContextInfo * range
+exception ErrorsFromAddingSubsumptionConstraint of tcGlobals: TcGlobals * displayEnv: DisplayEnv * actual: TType * expected: TType * exn * ContextInfo * parameterRange: range
 
 exception ErrorFromAddingConstraint of displayEnv: DisplayEnv * exn * range
 
@@ -2627,7 +2627,7 @@ and ResolveOverloading
                     // Prefer methods with more precise param array arg type
                     let c = 
                         if candidate.UsesParamArrayConversion && other.UsesParamArrayConversion then
-                            compareTypes candidate.ParamArrayElementType other.ParamArrayElementType
+                            compareTypes (candidate.GetParamArrayElementType()) (other.GetParamArrayElementType())
                         else
                             0
                     if c <> 0 then c else
