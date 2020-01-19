@@ -817,7 +817,13 @@ let isProvenUnionCaseTy ty = match ty with TType_ucase _ -> true | _ -> false
 
 let mkAppTy tcref tyargs = TType_app(tcref, tyargs)
 let mkProvenUnionCaseTy ucref tyargs = TType_ucase(ucref, tyargs)
-let isAppTy g ty = ty |> stripTyEqns g |> (function TType_app _ -> true | _ -> false) 
+let isAppTy g ty =
+    let isAppTyInitially = ty |> (function TType_app _ -> true | _ -> false)
+    let r = ty |> stripTyEqns g |> (function TType_app _ -> true | _ -> false)
+    if r <> isAppTyInitially then
+        failwithf "my assumption is wrong"
+    else
+        r
 let tryAppTy g ty = ty |> stripTyEqns g |> (function TType_app(tcref, tinst) -> ValueSome (tcref, tinst) | _ -> ValueNone) 
 let destAppTy g ty = ty |> stripTyEqns g |> (function TType_app(tcref, tinst) -> tcref, tinst | _ -> failwith "destAppTy")
 let tcrefOfAppTy g ty = ty |> stripTyEqns g |> (function TType_app(tcref, _) -> tcref | _ -> failwith "tcrefOfAppTy") 
