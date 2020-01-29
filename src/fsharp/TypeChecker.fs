@@ -10623,12 +10623,12 @@ and TcSetterArgExpr cenv env denv objExpr ad (AssignedItemSetter(id, setter, Cal
 and TcUnnamedMethodArgs cenv env lambdaPropagationInfo tpenv args =  
     List.mapiFoldSquared (TcUnnamedMethodArg cenv env) (lambdaPropagationInfo, tpenv) args 
 
-and TcUnnamedMethodArg cenv env (lambdaPropagationInfo, tpenv) (i, j, callerArg) = 
+and TcUnnamedMethodArg cenv env (lambdaPropagationInfo, tpenv) (i, j, CallerArg(argTy, mArg, isOpt, argExpr)) = 
     // Try to find the lambda propagation info for the corresponding unnamed argument at this position
     let lambdaPropagationInfoForArg = 
         [| for (unnamedInfo, _) in lambdaPropagationInfo -> 
              if i < unnamedInfo.Length && j < unnamedInfo.[i].Length then unnamedInfo.[i].[j] else NoInfo |] 
-    TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, callerArg)
+    TcMethodArg cenv env (lambdaPropagationInfo, tpenv) (lambdaPropagationInfoForArg, CallerArg(argTy, mArg, isOpt, argExpr))
 
 and TcMethodNamedArgs cenv env lambdaPropagationInfo tpenv args =  
     List.mapFoldSquared (TcMethodNamedArg cenv env) (lambdaPropagationInfo, tpenv) args

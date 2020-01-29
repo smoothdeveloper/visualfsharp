@@ -791,7 +791,7 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
 
             // Combine the variable allocators (if any)
             let wrapper = (wrapper >> wrapper2)
-            let callerArg = CallerArg(calledArgTy, mMethExpr, false, expr) 
+            let callerArg = CallerArg(calledArgTy, mMethExpr, false, expr)  
             { NamedArgIdOpt = None; CalledArg = calledArg; CallerArg = callerArg }, wrapper)
 
     // Adjust all the optional arguments 
@@ -867,7 +867,7 @@ let AdjustParamArrayCallerArgExprs g amap infoReader ad (calledMeth: CalledMeth<
         let arg = 
             [ { NamedArgIdOpt = None
                 CalledArg=paramArrayCalledArg
-                CallerArg =CallerArg(paramArrayCalledArg.CalledArgumentType, mMethExpr, false, Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr)) } ]
+                CallerArg=CallerArg(paramArrayCalledArg.CalledArgumentType, mMethExpr, false, Expr.Op (TOp.Array, [paramArrayCalledArgElementType], es, mMethExpr)) } ]
         paramArrayPreBinders, arg
 
 /// Build the argument list for a method call. Adjust for param array, optional arguments, byref arguments and coercions.
