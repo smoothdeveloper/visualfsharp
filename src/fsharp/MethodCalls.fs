@@ -791,7 +791,7 @@ let AdjustOptionalCallerArgExprs tcFieldInit eCallerMemberName g (calledMeth: Ca
 
             // Combine the variable allocators (if any)
             let wrapper = (wrapper >> wrapper2)
-            let callerArg = CallerArg(calledArgTy, mMethExpr, false, expr)  
+            let callerArg = CallerArg(calledArgTy, mMethExpr, false, expr)
             { NamedArgIdOpt = None; CalledArg = calledArg; CallerArg = callerArg }, wrapper)
 
     // Adjust all the optional arguments 
