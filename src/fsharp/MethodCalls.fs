@@ -50,7 +50,7 @@ type CallerArg<'T> =
     member x.Range = (let (CallerArg(_, m, _, _)) = x in m)
     member x.IsOptional = (let (CallerArg(_, _, isOpt, _)) = x in isOpt)
     member x.Expr = (let (CallerArg(_, _, _, expr)) = x in expr)
-
+    
 /// Represents the information about an argument in the method being called
 type CalledArg = 
     { Position: (int * int)
