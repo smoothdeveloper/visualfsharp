@@ -44,12 +44,12 @@ open FSharp.Compiler.ExtensionTyping
 ///
 /// The bool indicates if named using a '?' 
 type CallerArg<'T> = 
-     /// CallerArg(ty, range, isOpt, exprInfo)
-     | CallerArg of ty: TType * range: range * isOpt: bool * exprInfo: 'T  
-     member x.Type = (let (CallerArg(ty, _, _, _)) = x in ty)
-     member x.Range = (let (CallerArg(_, m, _, _)) = x in m)
-     member x.IsOptional = (let (CallerArg(_, _, isOpt, _)) = x in isOpt)
-     member x.Expr = (let (CallerArg(_, _, _, expr)) = x in expr)
+    /// CallerArg(ty, range, isOpt, exprInfo)
+    | CallerArg of ty: TType * range: range * isOpt: bool * exprInfo: 'T  
+    member x.Type = (let (CallerArg(ty, _, _, _)) = x in ty)
+    member x.Range = (let (CallerArg(_, m, _, _)) = x in m)
+    member x.IsOptional = (let (CallerArg(_, _, isOpt, _)) = x in isOpt)
+    member x.Expr = (let (CallerArg(_, _, _, expr)) = x in expr)
 
 /// Represents the information about an argument in the method being called
 type CalledArg = 
