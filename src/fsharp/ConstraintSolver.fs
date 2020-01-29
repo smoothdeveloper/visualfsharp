@@ -1536,7 +1536,7 @@ and SolveMemberConstraint (csenv: ConstraintSolverEnv) ignoreUnresolvedOverload 
                     |> List.choose (fun minfo ->
                           if minfo.IsCurried then None else
                           let callerArgs = 
-                            { Unnamed = [ (argtys |> List.map (fun argty -> { Type = argty; Range = m; IsOptional = false; Expr = dummyExpr })) ]
+                            { Unnamed = [ (argtys |> List.map (fun argty -> CallerArg(argty, m, false, dummyExpr))) ]
                               Named = [ [ ] ] }
                           let minst = FreshenMethInfo m minfo
                           let objtys = minfo.GetObjArgTypes(amap, m, minst)
