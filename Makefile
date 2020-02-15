@@ -44,3 +44,4 @@ test: build
 
 clean:
 	rm -rf $(CURDIR)/artifacts
+
